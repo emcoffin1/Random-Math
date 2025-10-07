@@ -115,7 +115,7 @@ def animate(frame):
 
     # Update temperature field
     im.set_data(T)
-    ax2.set_title(f"Step {frame}, Time = {t:.2f}s")
+    # ax2.set_title(f"Step {frame}, Time = {t:.2f}s")
 
     return [line1, line2, im]
 
