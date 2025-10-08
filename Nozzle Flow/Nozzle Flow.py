@@ -18,7 +18,8 @@ def nozzle_flow(eps, T0, P0, gamma, R):
 
 def main(Rt, T0, P0, gamma, R, cp, k, mu):
     # Get nozzle geometry
-    x, y, a = build_nozzle(Pe=101300, Pc=P0, size=0.8, Rt=Rt, gamma=gamma, plots="no")
+    x, y, a = build_nozzle(Pe=101300, Pc=P0, size=0.8, Rt=Rt, gamma=gamma, plots="2D")
+
     At = np.pi * Rt**2
     eps = a / At
 
@@ -28,9 +29,9 @@ def main(Rt, T0, P0, gamma, R, cp, k, mu):
     # Plot flow nozzle values
     l = [M, U, T, P, rho]
     labels = ["Mach Number", "Velocity [m/s]", "Temperature [K]", "Pressure [Pa]", "Density [kg/m³]"]
-    # utils.plot_flow_char(x=x, data=l, labels=labels)
-    # utils.plot_flow_field(x, y, T, "Temp", mode=2)
-    utils.convert_to_func(x,y)
+    utils.plot_flow_char(x=x, data=l, labels=labels)
+    utils.plot_flow_field(x, y, T, "Temp", mode=2)
+    # utils.convert_to_func(x,y)
 
 
 if __name__ == '__main__':
