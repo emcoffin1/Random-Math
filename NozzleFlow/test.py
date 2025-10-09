@@ -1,5 +1,4 @@
-from NozzleFlow.species_maker import *
-from NozzleFlow.species import *
+from species import *
 
 def test_gibbs_minimizer():
     print("=== Testing Gibbs Minimizer ===")
@@ -51,12 +50,3 @@ if __name__ == "__main__":
     ok = test_gibbs_minimizer()
     if not ok:
         print("Gibbs minimizer failed basic validation.")
-
-
-
-
-
-
-
-
-
