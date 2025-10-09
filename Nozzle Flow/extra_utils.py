@@ -172,6 +172,30 @@ def convert_to_func(x, y, filename="nozzle_curve.txt"):
     print("→ SolidWorks: Insert > Curve > Curve Through XYZ Points > Select this .txt")
     return x_dense, y_dense
 
+class ConvergencePlot:
+    def __init__(self, title="Convergence", ylabel="Residuals", yscale='log'):
+        plt.ion()
+        self.fig, self.ax = plt.subplots()
+        self.ax.set_title(title)
+        self.ax.set_xlabel("Iteration")
+        self.ax.set_ylabel(ylabel)
+        self.ax.set_yscale(yscale)
+        self.ax.grid(True)
+        self.line, = self.ax.plot([], [], "o-", color="tab:blue")
+        self.xs, self.ys = [], []
+
+    def update(self, iteration, residual):
+        self.xs.append(iteration)
+        self.ys.append(abs(residual) if abs(residual) > 0 else 1e-12)
+        self.line.set_data(self.xs, self.ys)
+        self.ax.relim()
+        self.ax.autoscale_view()
+        plt.pause(0.05)
+
+    def close(self):
+        plt.ioff()
+        plt.close(self.fig)
+
 
 
 
