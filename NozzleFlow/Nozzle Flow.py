@@ -7,40 +7,6 @@ import species, species_maker
 import matplotlib.pyplot as plt
 
 
-def should_equilibrate(T, rho, u, species, Y, Lc=0.05, Da_crit=5.0):
-    """
-    Determines if flow is in equilibrium or frozen,
-    based on temperature, pressure, density, velocity, and species.
-    :returns bool: True if frozen, False if equilibrium
-    """
-    R_univ = 8.314462618  # J/mol-K
-    # Convert dict Y → array in species order
-    Y = np.array([Y.get(sp.name, 0.0) for sp in species])
-
-    # === Mixture molecular weight === #
-    mws = np.array([sp.mw for sp in species])
-    inv_MW_mix = np.sum(Y / mws)
-    MW_mix = 1.0 / inv_MW_mix
-
-    # === Flow timescale === #
-    flow = Lc / max(u, 1e-30)
-
-    # === Chemical timescale === #
-    A = 2.0e14
-    n = 0.0
-    Ea = 7.1e4 * R_univ
-    k_eff = A * T**n * np.exp(-Ea / (R_univ * T))
-
-    conc = rho / MW_mix
-
-    chem = 1 / max(k_eff*conc, 1e-30)
-
-    # === Damkohler number === #
-    Da = flow / chem
-
-    return Da < Da_crit
-
-
 def nozzle_flow(eps, T0, P0, gamma, R):
 
     M = np.array([mach_eps(eps=e, gamma=gamma) for e in eps])
@@ -51,74 +17,101 @@ def nozzle_flow(eps, T0, P0, gamma, R):
     rho = P / (R * T)
     return {"M": M, "U": U, "T": T, "P": P, "rho": rho}
 
+def norm_frac(d):
+    s = sum(max(0.0, float(v)) for v in d.values())
+    if s <= 0.0:
+        return {k: 0.0 for k in d}
+    return {k: max(0.0, float(v))/s for k, v in d.items()}
+
+def compute_mach(T, R, gamma, v):
+    a = (gamma * R * T) ** 0.5
+    return v / max(a, 1e-9)
 
 def main(Rt, T0, P0, Pa, gamma, R, cp, k, mu, gibbs, b_elem, species, mdot, frozen=True):
-    # Get nozzle geometry
+    # geometry
     x, y, a = build_nozzle(Pe=101300, Pc=P0, size=0.8, Rt=Rt, gamma=gamma, plots="no")
 
-    # Initial chamber state
+    # chamber equilibrium (upper bound) for h_t and initial frozen Y (if frozen=True)
     ch_st = isen.chamber_state(T0=T0, P0=P0, gibbs=gibbs, b_elem=b_elem, species=species)
     h_t = ch_st["h0"]
-    Y_frozen = ch_st["Y"] if frozen else None
+    Y_frozen = norm_frac(ch_st["Y"]) if frozen else None
 
-    # Start saving and hints
-    states =[]
-    P_hi = P0
-    P_lo = max(Pa*0.05, 500.0)
+    states = []
+    n_total = len(a)
+    i_throat = int(np.argmin(a))
+
+    # sensible initial bracket and hint
+    P_hi = P0 * 1.02
+    P_lo = max(Pa * 0.5, 5e2)   # don’t go to near-zero kPa
     T_hint = T0
 
-    n_total = len(a)
-    for i, A in enumerate(a, start=1):
+    # species order for plotting
+    species_names = [sp.name for sp in gibbs.species]
 
-        # Compute next step at next area (A)
-        st = isen.solve_state(Ai=a[i-1], mdot=mdot, h_t=h_t, frozen=frozen, gibbs=gibbs, b_elem=b_elem,
-                              species=species, Y_frozen=Y_frozen, P_lo=P_lo, P_hi=P_hi, T_hint=T_hint)
+    for i, A in enumerate(a):
+        # Solve state at this area using last P/T as hints
+        st = isen.solve_state(Ai=A, mdot=mdot, h_t=h_t, frozen=frozen, gibbs=gibbs,
+                              b_elem=b_elem, species=species, Y_frozen=Y_frozen,
+                              P_lo=P_lo, P_hi=P_hi, T_hint=T_hint)
 
-        # Check if previous flow was frozen or not
-        frozen_new = should_equilibrate(T=st["T"], rho=st["rho"], u=st["v"], species=list(species.values()), Y=st["Y"])
-        # if frozen_new != frozen:
-        #     print(f"Switching to {'frozen' if frozen_new else 'equilibrium'} at x={x[i-1]:.3f} m")
-        #     frozen = frozen_new
-        if i > 0.50*len(x) :
-            frozen = False
-        else:
-            frozen = True
-
-        # Update hints and bounds
+        # keep the state
         states.append(st)
 
-        P_hi = max(P_lo, 1e3)
-        P_lo = min(P_hi, 2*P0)
+        # === Freeze logic: freeze when we hit/thru Mach 1 ===
+        M = compute_mach(st["T"], st["R"], st["gamma"], st["v"]) if st["converged"] else 0.0
+        # if not frozen and M >= 1.0:
+        #     frozen = True
+        #     Y_frozen = norm_frac(st["Y"])  # lock throat composition
+        #     print(f"→ Freezing composition at x={x[i]:.3f} m (M≈{M:.2f})")
+        if i > i_throat:
+            frozen = True
+        else:
+            frozen = False
 
-        # Update progress
-        print(f"{i/n_total*100.0:.2f}%")
-
-    y_name = list(states[0]["Y"].keys())
-    # y_val = np.array([[s["Y"][sp] for sp in y_name] for s in states])
-    y_val = np.array([[st["Y"].get(n, 0.0) for n in y_name] for st in states])
-    dy = y_val - y_val[0:1]
 
 
+        # === Warm-starts for next step ===
+        # Use last solved T as next hint
+        if st["converged"] and np.isfinite(st["T"]):
+            T_hint = st["T"]
+
+        # Recenter pressure bracket around last solved P (tight bracket makes it fast & stable)
+        if st["converged"] and np.isfinite(st["P"]):
+            P_star = st["P"]
+            P_lo = max(0.6 * P_star, Pa * 0.5, 5e2)
+            P_hi = min(1.4 * P_star, P0 * 1.05)
+            if P_lo >= P_hi:  # tiny numerical guard
+                P_lo, P_hi = max(P_star * 0.8, 5e2), min(P_star * 1.2, P0 * 1.05)
+        else:
+            # fallback if we didn't converge
+            P_lo = max(Pa * 0.5, 5e2)
+            P_hi = P0 * 1.05
+
+        # progress
+        print(f"{(i+1)/n_total*100.0:.2f}%  --  Frozen: {frozen}    --  Mach: {M}   --  x: {x[i]}")
+
+    # === Plot actual mass fractions (not delta) ===
+    Y_mat = np.array([[norm_frac(st["Y"]).get(nm, 0.0) for nm in species_names] for st in states])
     plt.figure()
-    for i, sp in  enumerate(y_name):
-        plt.plot(x, dy[:, i], label=sp)
-    plt.xlabel("Length [m]")
-    plt.ylabel("Mass Fraction [-]")
-    plt.legend()
-    plt.grid(True)
+    for j, nm in enumerate(species_names):
+        plt.plot(x, Y_mat[:, j], label=nm, linewidth=1.5)
+    plt.xlabel("Length [m]"); plt.ylabel("Mass Fraction [-]"); plt.grid(True); plt.legend(ncol=3)
     plt.show()
 
+    # Optional: velocity, T, P
+    plt.figure(figsize=(9,5))
+    plt.subplot(2,2,1); plt.plot(x,[st["v"] for st in states]); plt.grid(True); plt.ylabel("Velocity [m/s]")
+    plt.subplot(2,2,2); plt.plot(x,[st["T"] for st in states]); plt.grid(True); plt.ylabel("Temperature [K]")
+    plt.subplot(2,2,3); plt.plot(x,[st["P"] for st in states]); plt.grid(True); plt.ylabel("Pressure [Pa]"); plt.xlabel("Length [m]")
+    plt.subplot(2,2,4); plt.plot(x, a)
+    plt.tight_layout(); plt.show()
 
-    # Plot flow nozzle values
-    v_vals = [s["v"] if s["converged"] else 0.0 for s in states]
-    T_vals = [s["T"] if s["converged"] else 0.0 for s in states]
-    P_vals = [s["P"] if s["converged"] else 0.0 for s in states]
 
-    l = [v_vals, T_vals, P_vals]
-    labels = ["Velocity [m/s]", "Temperature [K]", "Pressure [Pa]"]
-    # labels = ["Mach Number", "Velocity [m/s]", "Temperature [K]", "Pressure [Pa]", "Density [kg/m³]"]
-    utils.plot_flow_char(x=x, data=l, labels=labels)
-    # utils.plot_flow_field(x, y, T, "Temp", mode=2)
+    # l = [v_vals, T_vals, P_vals]
+    # labels = ["Velocity [m/s]", "Temperature [K]", "Pressure [Pa]"]
+    # # labels = ["Mach Number", "Velocity [m/s]", "Temperature [K]", "Pressure [Pa]", "Density [kg/m³]"]
+    # utils.plot_flow_char(x=x, data=l, labels=labels)
+    # # utils.plot_flow_field(x, y, T, "Temp", mode=2)
     # utils.convert_to_func(x,y)
 
 

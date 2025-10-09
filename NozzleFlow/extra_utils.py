@@ -172,6 +172,39 @@ def convert_to_func(x, y, filename="nozzle_curve.txt"):
     print("→ SolidWorks: Insert > Curve > Curve Through XYZ Points > Select this .txt")
     return x_dense, y_dense
 
+
+
+def moles_to_mass(y, species):
+    # Initialize
+    denom = 0.0
+
+    # Create denominator for sum(moles * MW)
+    for k, v in y.items():
+        denom += v * species[k].mw
+    # Clip to prevent a random 0
+    denom = max(denom, 1e-30)
+
+    # Re-create dict using m_species / m_tot
+    w: dict = {k: (y[k] * species[k].mw / denom) for k in y}
+    return w
+
+def mass_to_moles(Y, species):
+    # Create numerator in form of mass / MW
+    numer = {k: (Y[k] / species[k].mw) for k in Y}
+
+    # Create denom which is a sum of the numerators
+    denom = sum(numer.values())
+    # And clip
+    denom = max(denom, 1.0e-30)
+
+    # Reform dictionary in numer/denom
+    # mol / mol_tot
+    w = {k: (numer[k] / denom) for k in numer}
+    return w
+
+
+
+
 class ConvergencePlot:
     def __init__(self, title="Convergence", ylabel="Residuals", yscale='log'):
         plt.ion()

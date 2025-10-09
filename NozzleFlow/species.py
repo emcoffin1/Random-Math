@@ -16,53 +16,92 @@ import numpy as np
 from species_maker import get_b_elem
 
 
+R = 8.314462618
+PREF = 101325.0
+
+def _iter_project_to_elements(A, b_vec, n, eps=1e-12, max_proj=8, tol=1e-12):
+    """Iterated exact projection: n <- n + A^T (AA^T)^-1 (b - A n), with NN clip."""
+    Ne = A.shape[0]
+    M = A @ A.T + eps * np.eye(Ne)
+    for _ in range(max_proj):
+        r = b_vec - A @ n
+        if np.linalg.norm(r) < tol:
+            break
+        lam = np.linalg.solve(M, r)
+        n = np.maximum(n + A.T @ lam, 1e-50)  # NN clip may reintroduce small residual → iterate
+    return n
+
 class GibbsMinimizer:
     def __init__(self, species: list, elements: list):
         self.species = species
         self.elements = elements
-        self.A = np.array([sp.elem_vec for sp in self.species]).T  # Element matrix (Ne×Ns)
+        self.A = np.array([sp.elem_vec for sp in self.species]).T  # (Ne x Ns)
 
-    def solve(self, T, P, b_elem, tol=1e-8, max_iter=200, damping=0.5):
-        R = 8.314462618
-        Ns = len(self.species)
-        Ne = len(self.elements)
+    def solve(self, T, P, b_elem, tol=1e-8, max_iter=300, damping=0.4):
+        # --- Build element totals and auto-filter species that use zero-total elements ---
+        elem_order = self.elements
+        b_vec_full = np.array([b_elem.get(e, 0.0) for e in elem_order], dtype=float)
+        A_full = self.A
 
-        n = np.ones(Ns) / Ns
-        b_vec = np.array([b_elem[e] for e in self.elements])
+        # zero-total element mask
+        zero_elem_mask = (b_vec_full == 0.0)
+        # keep a species only if it has ZERO counts for all zero-total elements
+        keep_mask = []
+        for j in range(A_full.shape[1]):
+            uses_zero_elem = np.any((A_full[:, j] != 0) & zero_elem_mask)
+            keep_mask.append(not uses_zero_elem)
+        keep_mask = np.array(keep_mask, dtype=bool)
 
-        for it in range(max_iter):
+        # Reduce problem if needed
+        A = A_full[:, keep_mask]
+        species_kept = [sp for (sp, k) in zip(self.species, keep_mask) if k]
+        Ns = len(species_kept)
+        Ne = len(elem_order)
+
+        # Also optionally drop element rows that are identically zero across kept species
+        row_keep = ~(zero_elem_mask & (np.all(A == 0, axis=1)))
+        A = A[row_keep, :]
+        b_vec = b_vec_full[row_keep]
+        elem_kept = [e for (e, rk) in zip(elem_order, row_keep) if rk]
+        Ne = len(elem_kept)
+
+        # --- Initial guess + projection ---
+        n = np.ones(Ns, dtype=float) / max(Ns, 1)
+        n = _iter_project_to_elements(A, b_vec, n)
+
+        # --- Iterate ---
+        for _ in range(max_iter):
             n_tot = n.sum()
-            y = np.clip(n / n_tot, 1e-50, 1.0)
-            g0 = np.array([sp.g_mol(T) for sp in self.species])
-            mu = g0 + R * T * np.log(y * P / 101325.0)
+            y = np.clip(n / max(n_tot, 1e-300), 1e-300, 1.0)
 
-            # Elemental balance residual
-            res = b_vec - self.A @ n
+            g0 = np.array([sp.g_mol(T) for sp in species_kept])
+            mu = g0 + R * T * np.log(y * P / PREF)
 
-            # Solve for Lagrange multipliers
-            ATA = self.A @ self.A.T
-            lam = np.linalg.solve(ATA + 1e-12 * np.eye(Ne), res)
-
-            # Update moles
-            logn_new = -(mu + self.A.T @ lam) / (R * T)
-            logn_new -= logn_new.max()
-            n_new = np.exp(logn_new)
-
-            # --- enforce elemental conservation ---
-            A_n = self.A @ n_new
-            delta = b_vec - A_n
-            corr, *_ = np.linalg.lstsq(self.A, delta, rcond=None)
-            n_new = np.maximum(n_new + corr, 1e-50)
-
-            # Damped mixing
-            n = damping * n_new + (1 - damping) * n
+            res = b_vec - A @ n
             if np.linalg.norm(res) < tol:
                 break
 
-        n = np.clip(n, 1e-30, None)
-        return {sp.name: ni for sp, ni in zip(self.species, n)}
+            # Lagrange step in element space
+            lam = np.linalg.solve(A @ A.T + 1e-12 * np.eye(Ne), res)
 
+            # Stable update (correct sign), normalized & clipped
+            logn_new = -(mu - A.T @ lam) / (R * T)
+            logn_new -= np.max(logn_new)
+            logn_new = np.clip(logn_new, -50.0, 50.0)
+            n_new = np.exp(logn_new)
 
+            # Exact projection with iteration (handles NN clipping)
+            n_new = _iter_project_to_elements(A, b_vec, n_new)
+
+            # Damped mix
+            n = np.maximum(damping * n_new + (1.0 - damping) * n, 1e-50)
+
+        # --- Map back to full species dict ---
+        out = {sp.name: 0.0 for sp in self.species}
+        idx_kept = np.where(keep_mask)[0]
+        for val, j in zip(n, idx_kept):
+            out[self.species[j].name] = float(val)
+        return out
 
 
 class Species:
@@ -75,7 +114,7 @@ class Species:
         self.temp_cutoff = self.chunk(temp_cutoff, n=11)[1]
         self.coeffs = {"low": self.chunk(coeffs_low), "high": self.chunk(coeffs_high)}
         self.int_const = {"low": self.chunk(int_const_low), "high": self.chunk(int_const_high)}
-        self.mw = float(mw)
+        self.mw = float(mw) / 1000.0
         self.element_dict = element_dict
         self.elem_vec = np.array([element_dict.get(e, 0) for e in ['C', 'H', 'O', "N"]])  # C, H, O
 
@@ -100,7 +139,7 @@ class Species:
         a = self.coeffs[self._range(T)]
         b = self.int_const[self._range(T)]
         h = -a[0]*T**-2 + a[1]*np.log(T)/T + a[2] + a[3]*T/2 + a[4]*T**2/3 + a[5]*T**3/4 + a[6]*T**4/5 + b[0]/T
-        return self.R * h
+        return self.R * h * T
 
     def s_mol(self, T):
         a = self.coeffs[self._range(T)]
