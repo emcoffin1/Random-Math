@@ -66,6 +66,7 @@ def mix_props_mass(T, Y, species):
 def st_from_P_A_mdot_h(P, A, mdot, h_t, Y_frozen, b_elem, species, gibbs,
                        T_guess=3000, frozen=False, iter_max=300):
     # Initialize the temperature for the solver using the T guess
+    # T_guess after first iteration is just the previous temperature
     T = float(T_guess)
 
     # Initialize the residual trackers
