@@ -1,4 +1,4 @@
-from MachSolver import mach_from_area_ratio_supersonic as mach_eps
+from MachSolver import mach_from_area_ratio as mach_eps
 import numpy as np
 from NozzleDesign import build_nozzle
 import extra_utils as utils
@@ -7,9 +7,11 @@ import species, species_maker
 import matplotlib.pyplot as plt
 
 
+
 def nozzle_flow(eps, T0, P0, gamma, R):
 
     M = np.array([mach_eps(eps=e, gamma=gamma) for e in eps])
+    # print(M)
     T = T0 / (1 + (gamma-1)/2 * M**2)
     P = P0 * (T/T0)**(gamma/(gamma-1))
     a = np.sqrt(gamma * R * T)
@@ -115,6 +117,26 @@ def main(Rt, T0, P0, Pa, gamma, R, cp, k, mu, gibbs, b_elem, species, mdot, froz
     # utils.convert_to_func(x,y)
 
 
+def main_basic(Pe=101325, Pc=2.013e6, Tc=3200, size=0.8, gamma=1.4, Rt=0.05, R=287):
+    # Build nozzle
+    x, y, a = build_nozzle(Pe=Pe, Pc=Pc, size=size, gamma=gamma, Rt=Rt, plots="no")
+
+    # Convert to ratio
+    a_min = min(a)
+    eps = a/a_min
+
+    # Isolate subsonic and supersonic with a negative sign (will be zeroed out eventually)
+    ind = np.where(eps == 1.0)[0][0]
+    eps[:ind] *= -1
+
+    # Solve isentropic relations
+    flow = nozzle_flow(eps=eps, T0=Tc, P0=Pc, gamma=gamma, R=R)
+    flows = [flow["M"], flow["U"], flow["T"], flow["P"], flow["rho"]]
+    names = ["M", "U", "T", "P", "rho"]
+    utils.plot_flow_char(x=x, data=flows, labels=names)
+
+
+
 if __name__ == '__main__':
     Ri = 0.05  # m (throat radius)
 
@@ -131,10 +153,11 @@ if __name__ == '__main__':
     k = 0.5937  # W/m-K
     mu = 8.617e-4  # Pa·s  (if you meant 0.8617 mPa·s)
 
-    # Generate Species and Gibbs solver
-    spec, elem = species.get_species_data()
-    b_elem, total = species_maker.get_b_elem(fuel_formula="C12H26", oxidizer_formula="O2", OF_ratio=OF)
-    gibbs = species.GibbsMinimizer(species=list(spec.values()), elements=elem)
-
-    main(Rt=Ri, T0=T0, P0=P0, Pa=101325, gamma=gamma, R=Rgas, k=k, mu=mu, cp=cp, gibbs=gibbs,
-         b_elem=b_elem, species=spec, mdot=mdot, frozen=True)
+    # # Generate Species and Gibbs solver
+    # spec, elem = species.get_species_data()
+    # b_elem, total = species_maker.get_b_elem(fuel_formula="C12H26", oxidizer_formula="O2", OF_ratio=OF)
+    # gibbs = species.GibbsMinimizer(species=list(spec.values()), elements=elem)
+    #
+    # main(Rt=Ri, T0=T0, P0=P0, Pa=101325, gamma=gamma, R=Rgas, k=k, mu=mu, cp=cp, gibbs=gibbs,
+    #      b_elem=b_elem, species=spec, mdot=mdot, frozen=True)
+    main_basic()

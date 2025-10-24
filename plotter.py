@@ -64,8 +64,8 @@ for l, i in flows:
 plt.grid()
 plt.legend()
 plt.title("Boundary Layer Characteristics Across Plate")
-plt.xlabel("Boundary Layer Height (m)")
-plt.ylabel("Station (m)")
+plt.ylabel("Boundary Layer Height (m)")
+plt.xlabel("Station (m)")
 plt.tight_layout()
 plt.show()
 
