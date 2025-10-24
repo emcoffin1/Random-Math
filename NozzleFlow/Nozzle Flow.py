@@ -1,3 +1,4 @@
+from HeatTransfer.bartz_formuals import bartz_heat_transfer
 from MachSolver import mach_from_area_ratio as mach_eps
 import numpy as np
 from NozzleDesign import build_nozzle
@@ -117,7 +118,7 @@ def main(Rt, T0, P0, Pa, gamma, R, cp, k, mu, gibbs, b_elem, species, mdot, froz
     # utils.convert_to_func(x,y)
 
 
-def main_basic(Pe=101325, Pc=2.013e6, Tc=3200, size=0.8, gamma=1.4, Rt=0.05, R=287):
+def main_basic(Pe=101325, Pc=2.013e6, Tc=3200, size=0.8, gamma=1.4, Rt=0.05, R=287, mu=8.617e-4, k=0.5937):
     # Build nozzle
     x, y, a = build_nozzle(Pe=Pe, Pc=Pc, size=size, gamma=gamma, Rt=Rt, plots="no")
 
@@ -131,10 +132,15 @@ def main_basic(Pe=101325, Pc=2.013e6, Tc=3200, size=0.8, gamma=1.4, Rt=0.05, R=2
 
     # Solve isentropic relations
     flow = nozzle_flow(eps=eps, T0=Tc, P0=Pc, gamma=gamma, R=R)
-    flows = [flow["M"], flow["U"], flow["T"], flow["P"], flow["rho"]]
-    names = ["M", "U", "T", "P", "rho"]
-    utils.plot_flow_char(x=x, data=flows, labels=names)
+    # flows = [flow["M"], flow["U"], flow["T"], flow["P"], flow["rho"]]
+    # names = ["M", "U", "T", "P", "rho"]
+    # utils.plot_flow_char(x=x, data=flows, labels=names)
 
+    # Solve for heat transfer
+    cp = gamma * R / (gamma - 1)
+    q = bartz_heat_transfer(gamma=gamma, R=R, Pc=Pc, rt=Rt, x=x, y=y, cp=cp, k=k, mu=mu,
+                            T=flow["T"], Tc=Tc, M=flow["M"])
+    utils.plot_flow_char(x=x, data=[q["qdot"]], labels=[""])
 
 
 if __name__ == '__main__':
@@ -151,7 +157,10 @@ if __name__ == '__main__':
     # Properties (SI)
     cp = 2852.7  # J/kg-K  (2.8527 kJ/kg-K)
     k = 0.5937  # W/m-K
-    mu = 8.617e-4  # Pa·s  (if you meant 0.8617 mPa·s)
+    mu = 8.617e-4  # Pa·s
+
+    # Material Props (SI)
+
 
     # # Generate Species and Gibbs solver
     # spec, elem = species.get_species_data()
