@@ -65,79 +65,119 @@ def plot_flow_char(x, data, labels):
     plt.show()
 
 
-def plot_flow_field(x, y, data, label, mode=1, cmap='plasma'):
+# def plot_flow_field(x, y, data, label, mode=1, cmap='plasma'):
+#     """
+#     Visualize 1D flow property within a symmetric nozzle contour.
+#
+#     Parameters
+#     ----------
+#     x, y : 1D arrays
+#         Axial and radial geometry coordinates (upper wall).
+#     data : 1D array
+#         Flow property along x (Mach, Pressure, etc.).
+#     label : str
+#         Colorbar label.
+#     mode : int
+#         1 = discrete PolyCollection bands
+#         2 = smooth interpolated field
+#     cmap : str
+#         Matplotlib colormap name.
+#     """
+#
+#     if mode == 1:
+#         verts, colors = [], []
+#         for i in range(len(x) - 1):
+#             verts.append([
+#                 (x[i],   -y[i]),
+#                 (x[i],    y[i]),
+#                 (x[i+1],  y[i+1]),
+#                 (x[i+1], -y[i+1])
+#             ])
+#             colors.append(data[i])
+#
+#         fig, ax = plt.subplots(figsize=(10, 3))
+#         poly = PolyCollection(verts, array=np.array(colors),
+#                               cmap=cmap, edgecolors='none')
+#         ax.add_collection(poly)
+#         ax.plot(x,  y, 'k', lw=1.5)
+#         ax.plot(x, -y, 'k', lw=1.5)
+#         ax.set_aspect('equal')
+#         ax.set_xlabel("Length [m]")
+#         ax.set_ylabel("Radius [m]")
+#         fig.colorbar(poly, ax=ax, label=label)
+#         plt.show()
+#
+#     else:
+#         # create a physical grid for plotting
+#         nx, ny = 1000, 1000
+#         X, Y = np.meshgrid(
+#             np.linspace(x.min(), x.max(), nx),
+#             np.linspace(-y.max(), y.max(), ny)
+#         )
+#
+#         # interpolate flow property to the grid along x
+#         val_field = np.interp(X[0, :], x, data)
+#         val_grid = np.tile(val_field, (ny, 1))
+#
+#         # interpolate the upper/lower wall coordinates for each X column
+#         y_upper = np.interp(X[0, :], x, y)
+#         y_lower = -y_upper
+#
+#         # build mask for inside/outside nozzle
+#         mask = (Y < y_lower) | (Y > y_upper)
+#         val_grid[mask] = np.nan
+#
+#         fig, ax = plt.subplots()
+#         img = ax.pcolormesh(X, Y, val_grid, shading='auto', cmap=cmap)
+#         ax.plot(x, y, 'k', lw=1.5)
+#         ax.plot(x, -y, 'k', lw=1.5)
+#         ax.set_aspect('equal')
+#         ax.set_xlabel("Length [m]")
+#         ax.set_ylabel("Radius [m]")
+#         fig.colorbar(img, ax=ax, label=label)
+#         fig.suptitle(f"{label} Through Nozzle")
+#         plt.show()
+#         plt.show()
+
+
+def plot_flow_chart(x, data, labels, sublabels=None):
     """
-    Visualize 1D flow property within a symmetric nozzle contour.
+    Plots multiple flow characteristics along a nozzle.
+    Accepts either single y-arrays or tuples/lists of y-arrays for multi-line subplots.
 
-    Parameters
-    ----------
-    x, y : 1D arrays
-        Axial and radial geometry coordinates (upper wall).
-    data : 1D array
-        Flow property along x (Mach, Pressure, etc.).
-    label : str
-        Colorbar label.
-    mode : int
-        1 = discrete PolyCollection bands
-        2 = smooth interpolated field
-    cmap : str
-        Matplotlib colormap name.
+    :param x:          1D array of axial positions
+    :param data:       list of y-arrays or tuples/lists of y-arrays
+    :param labels:     list of y-axis labels for each subplot
+    :param sublabels:  optional list of sublabels (list of lists/tuples) for multi-line plots
     """
+    l = len(data)
+    ncols = 2
+    nrows = int(np.ceil(l / ncols))
+    fig = plt.figure(figsize=(8, 2 * nrows))
 
-    if mode == 1:
-        verts, colors = [], []
-        for i in range(len(x) - 1):
-            verts.append([
-                (x[i],   -y[i]),
-                (x[i],    y[i]),
-                (x[i+1],  y[i+1]),
-                (x[i+1], -y[i+1])
-            ])
-            colors.append(data[i])
+    for i in range(l):
+        ax = fig.add_subplot(nrows, ncols, i + 1)
+        label = labels[i] if i < len(labels) else f"Data {i+1}"
 
-        fig, ax = plt.subplots(figsize=(10, 3))
-        poly = PolyCollection(verts, array=np.array(colors),
-                              cmap=cmap, edgecolors='none')
-        ax.add_collection(poly)
-        ax.plot(x,  y, 'k', lw=1.5)
-        ax.plot(x, -y, 'k', lw=1.5)
-        ax.set_aspect('equal')
-        ax.set_xlabel("Length [m]")
-        ax.set_ylabel("Radius [m]")
-        fig.colorbar(poly, ax=ax, label=label)
-        plt.show()
+        # Handle tuple/list of arrays -> multiple lines per subplot
+        if isinstance(data[i], (tuple, list)):
+            y_group = data[i]
+            # Get sublabels (if provided)
+            sl = sublabels[i] if sublabels and i < len(sublabels) else [f"Set {j+1}" for j in range(len(y_group))]
+            for y, slbl in zip(y_group, sl):
+                ax.plot(x, y, label=slbl)
+            ax.legend(fontsize=8)
+        else:
+            ax.plot(x, data[i], label=label)
 
-    else:
-        # create a physical grid for plotting
-        nx, ny = 1000, 1000
-        X, Y = np.meshgrid(
-            np.linspace(x.min(), x.max(), nx),
-            np.linspace(-y.max(), y.max(), ny)
-        )
+        ax.set_ylabel(label)
+        ax.grid(True)
+        ax.minorticks_on()
+        ax.grid(which='minor', linestyle=':', linewidth='0.5')
 
-        # interpolate flow property to the grid along x
-        val_field = np.interp(X[0, :], x, data)
-        val_grid = np.tile(val_field, (ny, 1))
-
-        # interpolate the upper/lower wall coordinates for each X column
-        y_upper = np.interp(X[0, :], x, y)
-        y_lower = -y_upper
-
-        # build mask for inside/outside nozzle
-        mask = (Y < y_lower) | (Y > y_upper)
-        val_grid[mask] = np.nan
-
-        fig, ax = plt.subplots()
-        img = ax.pcolormesh(X, Y, val_grid, shading='auto', cmap=cmap)
-        ax.plot(x, y, 'k', lw=1.5)
-        ax.plot(x, -y, 'k', lw=1.5)
-        ax.set_aspect('equal')
-        ax.set_xlabel("Length [m]")
-        ax.set_ylabel("Radius [m]")
-        fig.colorbar(img, ax=ax, label=label)
-        fig.suptitle(f"{label} Through Nozzle")
-        plt.show()
-        plt.show()
+    plt.xlabel("Axial Length [m]")
+    plt.tight_layout()
+    plt.show()
 
 
 def convert_to_func(x, y, filename="nozzle_curve.txt"):
