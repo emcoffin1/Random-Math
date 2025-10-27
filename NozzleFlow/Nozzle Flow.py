@@ -120,7 +120,7 @@ def main(Rt, T0, P0, Pa, gamma, R, cp, k, mu, gibbs, b_elem, species, mdot, froz
     # utils.convert_to_func(x,y)
 
 
-def main_basic(Pe=101325, Pc=2.013e6, Tc=3200, size=0.8, gamma=1.4, Rt=0.05, R=350, mu=8.617e-4, k=0.5937):
+def main_basic(Pe=101325, Pc=2.013e6, Tc=3200, size=0.8, gamma=1.22, Rt=0.05, R=350, mu=8.617e-4, k=0.5937):
     # Build nozzle
     x, y, a = build_nozzle(Pe=Pe, Pc=Pc, size=size, gamma=gamma, Rt=Rt, plots="no")
 
@@ -161,7 +161,9 @@ def main_basic(Pe=101325, Pc=2.013e6, Tc=3200, size=0.8, gamma=1.4, Rt=0.05, R=3
     flows = flows + flows1 + flows2
     names = names + names1 + names2
     subnames = subnames + subnames1 + subnames2
-    utils.plot_flow_chart(x=x, data=flows, labels=names, sublabels=subnames)
+    # utils.plot_flow_chart(x=x, data=flows, labels=names, sublabels=subnames)
+
+    utils.plot_flow_field(x, y, data=q["qdot"], label="Heat Flux")
 
 
 if __name__ == '__main__':
