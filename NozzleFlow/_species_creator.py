@@ -13,96 +13,6 @@ O:   7287:7298  -->
 H:   4994:5005  -->
 """
 import numpy as np
-from species_maker import get_b_elem
-
-
-R = 8.314462618
-PREF = 101325.0
-
-def _iter_project_to_elements(A, b_vec, n, eps=1e-12, max_proj=8, tol=1e-12):
-    """Iterated exact projection: n <- n + A^T (AA^T)^-1 (b - A n), with NN clip."""
-    Ne = A.shape[0]
-    M = A @ A.T + eps * np.eye(Ne)
-    for _ in range(max_proj):
-        r = b_vec - A @ n
-        if np.linalg.norm(r) < tol:
-            break
-        lam = np.linalg.solve(M, r)
-        n = np.maximum(n + A.T @ lam, 1e-50)  # NN clip may reintroduce small residual → iterate
-    return n
-
-class GibbsMinimizer:
-    def __init__(self, species: list, elements: list):
-        self.species = species
-        self.elements = elements
-        self.A = np.array([sp.elem_vec for sp in self.species]).T  # (Ne x Ns)
-
-    def solve(self, T, P, b_elem, tol=1e-8, max_iter=300, damping=0.4):
-        # --- Build element totals and auto-filter species that use zero-total elements ---
-        elem_order = self.elements
-        b_vec_full = np.array([b_elem.get(e, 0.0) for e in elem_order], dtype=float)
-        A_full = self.A
-
-        # zero-total element mask
-        zero_elem_mask = (b_vec_full == 0.0)
-        # keep a species only if it has ZERO counts for all zero-total elements
-        keep_mask = []
-        for j in range(A_full.shape[1]):
-            uses_zero_elem = np.any((A_full[:, j] != 0) & zero_elem_mask)
-            keep_mask.append(not uses_zero_elem)
-        keep_mask = np.array(keep_mask, dtype=bool)
-
-        # Reduce problem if needed
-        A = A_full[:, keep_mask]
-        species_kept = [sp for (sp, k) in zip(self.species, keep_mask) if k]
-        Ns = len(species_kept)
-        Ne = len(elem_order)
-
-        # Also optionally drop element rows that are identically zero across kept species
-        row_keep = ~(zero_elem_mask & (np.all(A == 0, axis=1)))
-        A = A[row_keep, :]
-        b_vec = b_vec_full[row_keep]
-        elem_kept = [e for (e, rk) in zip(elem_order, row_keep) if rk]
-        Ne = len(elem_kept)
-
-        # --- Initial guess + projection ---
-        n = np.ones(Ns, dtype=float) / max(Ns, 1)
-        n = _iter_project_to_elements(A, b_vec, n)
-
-        # --- Iterate ---
-        for _ in range(max_iter):
-            n_tot = n.sum()
-            y = np.clip(n / max(n_tot, 1e-300), 1e-300, 1.0)
-
-            g0 = np.array([sp.g_mol(T) for sp in species_kept])
-            mu = g0 + R * T * np.log(y * P / PREF)
-
-            res = b_vec - A @ n
-            if np.linalg.norm(res) < tol:
-                break
-
-            # Lagrange step in element space
-            lam = np.linalg.solve(A @ A.T + 1e-12 * np.eye(Ne), res)
-
-            # Stable update (correct sign), normalized & clipped
-            logn_new = -(mu - A.T @ lam) / (R * T)
-            logn_new -= np.max(logn_new)
-            logn_new = np.clip(logn_new, -50.0, 50.0)
-            n_new = np.exp(logn_new)
-
-            # Exact projection with iteration (handles NN clipping)
-            n_new = _iter_project_to_elements(A, b_vec, n_new)
-
-            # Damped mix
-            n = np.maximum(damping * n_new + (1.0 - damping) * n, 1e-50)
-
-        # --- Map back to full species dict ---
-        out = {sp.name: 0.0 for sp in self.species}
-        idx_kept = np.where(keep_mask)[0]
-        for val, j in zip(n, idx_kept):
-            out[self.species[j].name] = float(val)
-        return out
-
 
 class Species:
     def __init__(self, name, temp_cutoff, activation, coeffs_low, coeffs_high, int_const_low, int_const_high,
@@ -216,9 +126,4 @@ if __name__ == '__main__':
     # spec: dict[species]
     # elem: list of elements
     spec, elem = get_species_data()
-    b_elem, total = get_b_elem("C12H26", "O2", OF_ratio=2.6)
-    gibbs = GibbsMinimizer(list(spec.values()), elem)
 
-    y_eq = gibbs.solve(T=3000, P=5e6, b_elem=b_elem)
-    for k, v in y_eq.items():
-        print(f"{k}: {v:.3e}")

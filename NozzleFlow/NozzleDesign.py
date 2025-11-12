@@ -1,7 +1,7 @@
 import numpy as np
 from MachSolver import area_ratio_from_M
 import matplotlib.pyplot as plt
-from extra_utils import plot_engine
+from _extra_utils import plot_engine
 
 
 def exit_mach_from_p(P_r, gamma=1.4):
@@ -150,18 +150,16 @@ def area_conversion(y):
     return a
 
 
-def build_nozzle(Pe=101300, Pc=2.013e6, size=0.6, Rt=0.025, eps=None, gamma=1.4, plots="no"):
+def build_nozzle(data:dict, eps=None):
     """
     Build the full nozzle, and gives an option to plot the data in 2d or 3d
-    :param Pe:      Exit pressure
-    :param Pc:      Chamber pressure
-    :param size:    Bell percent
-    :param Rt:      Throat Radius
+    :param data:    Dictionary of engine data
     :param eps:     Area ratio
-    :param gamma:   Specific heat of combusted gas
-    :param plots:   ["no", "2D", "3D"]
     :return:        x, y, a
     """
+    # Break apart info dict
+    Pe, Pc, size, Rt, gamma, plots = (data["Pe"], data["Pc"], data["size"], data["Rt"], data["gamma"], data["plots"])
+
     # Pressure ratio
     P_r = Pc / Pe
     # Exit mach
@@ -169,7 +167,6 @@ def build_nozzle(Pe=101300, Pc=2.013e6, size=0.6, Rt=0.025, eps=None, gamma=1.4,
     # Expansion ratio
     if eps is None:
         eps = area_ratio_from_M(Me, gamma=gamma)
-    Re = np.sqrt(eps) * Rt
 
     # Engine Structure/shape
     L, n, e = get_angles(Rt, eps, bell_percent=size)

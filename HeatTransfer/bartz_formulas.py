@@ -1,6 +1,6 @@
 import numpy as np
 
-def bartz_heat_transfer(gamma, R, Pc, rt, x, y, cp, k, mu, Tc, T, M, t_wall=0.002, k_wall=30, T_cool=298,
+def bartz_heat_transfer(x, y, cp, T, M, info: dict,t_wall=0.002, k_wall=30, T_cool=298,
                         h_c=15000, w=0.7):
     """
     Uses Bartz Formula to compute the gas-side convective heat transfer coefficient
@@ -22,11 +22,14 @@ def bartz_heat_transfer(gamma, R, Pc, rt, x, y, cp, k, mu, Tc, T, M, t_wall=0.00
     :param w:
     :return:
     """
+    # Dictionary breakdown
+    Pc, Rt, gamma, R, k, mu, Tc = info["Pc"], info["Rt"], info["gamma"], info["R"], info["k"], info["mu"], info["Tc"]
+
     # Variable Calcs and Assumptions
     c_star = (1/np.sqrt(gamma)) * ((2/(gamma + 1))**((gamma + 1)/(2*(gamma - 1)))) * np.sqrt(R * Tc)
 
     D = 2*y
-    Dt = 2*rt
+    Dt = 2*Rt
 
     # Initial wall temperature guess (through full engine)
     Tw_init = 0.45 * Tc
