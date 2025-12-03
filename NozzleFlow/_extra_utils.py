@@ -13,15 +13,18 @@ def plot_engine(x, y, type="2D"):
         ax.plot(x, y, color="b")
         ax.plot(x, -y, color="b")
 
-        ax.set_aspect('equal')
+        # Force pyplot-like autoscaling
+        ax.autoscale()
+        plt.tight_layout()
+
         ax.set_title("Ideal - Rao Nozzle")
         ax.set_xlabel("Length [m]")
         ax.set_ylabel("Radius [m]")
 
         ax.grid()
         ax.minorticks_on()
-        ax.grid(which='major', linestyle='-', linewidth='0.5')  # , color='red'
-        ax.grid(which='minor', linestyle=':', linewidth='0.5')  # , color='black'
+        ax.grid(which='major', linestyle='-', linewidth='0.5')
+        ax.grid(which='minor', linestyle=':', linewidth='0.5')
 
     if type == "3D":
         fig = plt.figure()
@@ -34,8 +37,7 @@ def plot_engine(x, y, type="2D"):
 
         ax.plot_surface(X, Y, -Z, color="b", edgecolor='g', linewidth=0.5, shade=True)
         # ax.plot_surface(X, Y, -Z, color="b", linewidth=2)
-        ax.axis('equal')
-
+        # ax.axis('equal')
     plt.show()
 
 

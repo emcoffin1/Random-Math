@@ -1,8 +1,12 @@
 import numpy as np
 from MachSolver import area_ratio_from_M
-import matplotlib.pyplot as plt
 from _extra_utils import plot_engine
+from scipy.interpolate import interp1d, splrep, splev, PchipInterpolator
+import matplotlib.pyplot as plt
 
+
+"""https://rrs.org/2023/01/28/making-correct-parabolic-nozzles/"""
+"""Compare with this at some point"""
 
 def exit_mach_from_p(P_r, gamma=1.4):
     P = P_r
@@ -20,30 +24,25 @@ def entry_section(Rt, high=-135, low=-90):
     :param low:     Lowest angle (right) [deg]
     :return:        x, y
     """
-    i = np.abs(high-low) * 2
+    i = np.abs(high - low) * 2
     theta = np.linspace(low, high, num=round(i))
     theta = np.radians(theta)
     x = 1.5 * Rt * np.cos(theta)
     y = 1.5 * Rt * np.sin(theta) + 1.5 * Rt + Rt
-
     return x, y
 
 
 def exit_section(Rt, theta_n):
     """
-
-    :param Rt:
-    :param theta_n:
-    :return:
+    Throat exit circular arc
     """
     low = -90
     high = np.degrees(theta_n) - 90.0
-    i = np.abs(high-low) * 2
+    i = np.abs(high - low) * 2
     theta = np.linspace(low, high, num=round(i))
     theta = np.radians(theta)
     x = 0.382 * Rt * np.cos(theta)
     y = 0.382 * Rt * np.sin(theta) + 0.382 * Rt + Rt
-
     return x, y
 
 
@@ -62,7 +61,7 @@ def quadratic_curve(points):
     return x, y
 
 
-def get_angles(Rt, ar:float, bell_percent=0.8):
+def get_angles(Rt, ar: float, bell_percent=0.8):
     """
     Extrapolates the angle for exit and for initial conditions
     :param Rt:              Throat Radius [m]
@@ -71,41 +70,46 @@ def get_angles(Rt, ar:float, bell_percent=0.8):
     :return:
     """
     bp = bell_percent
-    aratio      = np.array([3.5,   4,     5,   10,     20,    30,    40,    50,    100])
+    aratio = np.array([3.5, 4, 5, 10, 20, 30, 40, 50, 100])
 
-    theta_n_60  = np.array([25.5,  26.5,  28,  32,     35,    36.3,  37.5,  38,    40.25])
-    theta_n_70  = np.array([23,    24,    25,  28.5,   31.3,  32.6,  33.6,  34.5,  36.5])
-    theta_n_80  = np.array([21,    21.6,  23,  26.3,   27.9,  30,    31,    32.2,  33.75])
-    theta_n_90  = np.array([19,    20,    21,  24.25,  27,    28.5,  29.3,  30,    32.5])
-    theta_n_100 = np.array([18.5,  19,    20,  22.5,   25.5,  27,    28,    29,    32])
+    theta_n_60 = np.array([25.5, 26.5, 28, 32, 35, 36.3, 37.5, 38, 40.25])
+    theta_n_70 = np.array([23, 24, 25, 28.5, 31.3, 32.6, 33.6, 34.5, 36.5])
+    theta_n_80 = np.array([21, 21.6, 23, 26.3, 27.9, 30, 31, 32.2, 33.75])
+    theta_n_90 = np.array([19, 20, 21, 24.25, 27, 28.5, 29.3, 30, 32.5])
+    theta_n_100 = np.array([18.5, 19, 20, 22.5, 25.5, 27, 28, 29, 32])
 
-    theta_e_60  = np.array([21.8,  21,    19,  16,     14.5,  14,    13.5,  13,    12])
-    theta_e_70  = np.array([18,    17,    16,  13,     12,    11.2,  10.8,  10.5,  9.75])
-    theta_e_80  = np.array([14.8,  14,    13,  10.5,   9,     8.25,  8,     7.75,  7])
-    theta_e_90  = np.array([12,    11,    10,  8,      7,     6.5,   6.25,  6,     6])
-    theta_e_100 = np.array([10,    9,     8,   6,      5.25,  4.9,   4.75,  4.5,   4.25])
+    theta_e_60 = np.array([21.8, 21, 19, 16, 14.5, 14, 13.5, 13, 12])
+    theta_e_70 = np.array([18, 17, 16, 13, 12, 11.2, 10.8, 10.5, 9.75])
+    theta_e_80 = np.array([14.8, 14, 13, 10.5, 9, 8.25, 8, 7.75, 7])
+    theta_e_90 = np.array([12, 11, 10, 8, 7, 6.5, 6.25, 6, 6])
+    theta_e_100 = np.array([10, 9, 8, 6, 5.25, 4.9, 4.75, 4.5, 4.25])
 
     # nozzle length
-    f1 = ((np.sqrt(ar) - 1) * Rt)/ np.tan(np.radians(15))
+    f1 = ((np.sqrt(ar) - 1) * Rt) / np.tan(np.radians(15))
 
     if bp == 0.6:
-        theta_n = theta_n_60; theta_e = theta_e_60
+        theta_n = theta_n_60
+        theta_e = theta_e_60
         L = 0.6 * f1
 
     elif bp == 0.7:
-        theta_n = theta_n_70; theta_e = theta_e_70
+        theta_n = theta_n_70
+        theta_e = theta_e_70
         L = 0.7 * f1
 
     elif bp == 0.8:
-        theta_n = theta_n_80; theta_e = theta_e_80
+        theta_n = theta_n_80
+        theta_e = theta_e_80
         L = 0.8 * f1
 
     elif bp == 0.9:
-        theta_n = theta_n_90; theta_e = theta_e_90
+        theta_n = theta_n_90
+        theta_e = theta_e_90
         L = 0.9 * f1
 
     else:
-        theta_n = theta_n_100; theta_e = theta_e_100
+        theta_n = theta_n_100
+        theta_e = theta_e_100
         L = 1.0 * f1
 
     # find the nearest value using linear interp (not very accurate)
@@ -118,12 +122,6 @@ def get_angles(Rt, ar:float, bell_percent=0.8):
 def point_selection(Rt, eps, theta_n, theta_e, bell_percent=0.8) -> list:
     """
     Computes the nozzle curve points E, Q, N
-    :param Rt:              Throat Radius [m]
-    :param eps:             Expansion Ratio []
-    :param theta_n:         Entry angle [rad]
-    :param theta_e:         Exit angle [rad]
-    :param bell_percent:    Percent of nozzle [%]
-    :return:                list [Nx, Ny, Ex, Ey, Qx, Qy]
     """
     theta = theta_n - np.radians(90)
     Nx = 0.382 * Rt * np.cos(theta)
@@ -135,10 +133,11 @@ def point_selection(Rt, eps, theta_n, theta_e, bell_percent=0.8) -> list:
 
     m1 = np.tan(theta_n)
     m2 = np.tan(theta_e)
-    c1 = Ny - m1*Nx
-    c2 = Ey - m2*Ex
-    Qx = (c2 - c1)/(m1 - m2)
-    Qy = (m1*c2 - m2*c1)/(m1 - m2)
+    c1 = Ny - m1 * Nx
+    c2 = Ey - m2 * Ex
+
+    Qx = (c2 - c1) / (m1 - m2)
+    Qy = (m1 * c2 - m2 * c1) / (m1 - m2)
 
     points = [Nx, Ny, Ex, Ey, Qx, Qy]
     return points
@@ -150,20 +149,21 @@ def area_conversion(y):
     return a
 
 
-def build_nozzle(data:dict, eps=None):
+def build_nozzle(data: dict, eps=None):
     """
-    Build the full nozzle, and gives an option to plot the data in 2d or 3d
-    :param data:    Dictionary of engine data
-    :param eps:     Area ratio
-    :return:        x, y, a
+    Build the full nozzle and optionally plot
     """
-    # Break apart info dict
-    Pe, Pc, size, Rt, gamma, plots = (data["Pe"], data["Pc"], data["size"], data["Rt"], data["gamma"], data["plots"])
+    Pe, Pc, T, size, mdot, Rt, gamma, R, plots = (
+        data["Pe"], data["Pc"], data["Tc"], data["size"], data["mdot"], data["Rt"], data["gamma"],
+        data["R"], data["plots"]
+    )
 
     # Pressure ratio
     P_r = Pc / Pe
+
     # Exit mach
     Me = exit_mach_from_p(P_r)
+
     # Expansion ratio
     if eps is None:
         eps = area_ratio_from_M(Me, gamma=gamma)
@@ -171,6 +171,7 @@ def build_nozzle(data:dict, eps=None):
     # Engine Structure/shape
     L, n, e = get_angles(Rt, eps, bell_percent=size)
     points = point_selection(Rt, eps, n, e, bell_percent=size)
+
     xq, yq = quadratic_curve(points)
     xen, yen = entry_section(Rt)
     xe, ye = exit_section(Rt, n)
@@ -179,20 +180,15 @@ def build_nozzle(data:dict, eps=None):
     x = np.concatenate((xen[::-1], xe, xq))
     y = np.concatenate((yen[::-1], ye, yq))
 
-    # Get area for each
     a = area_conversion(y)
 
+
     if plots == "no":
+        # plt.plot(x, y)
+        # plt.plot(x,-y)
+        # plt.show()
         return x, y, a
 
     elif plots == "2D" or plots == "3D":
-        plot_engine(x, y, plots)
+        plot_engine(y=y, x=x, type=plots)
         return x, y, a
-
-
-if __name__ == '__main__':
-
-    build_nozzle(plots="2D")
-
-
-

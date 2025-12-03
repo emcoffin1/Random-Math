@@ -3,7 +3,12 @@ from MachSolver import mach_from_area_ratio as mach_eps
 import numpy as np
 from NozzleDesign import build_nozzle
 import _extra_utils as utils
-
+import matplotlib.pyplot as plt
+def throat_radius(flow: dict):
+    mdot, Pc, gamma, R, T = flow["mdot"], flow["Pc"], flow["gamma"], flow["R"], flow["Tc"]
+    throat_A = mdot / (Pc * np.sqrt(gamma/(R*T)) * (2/(gamma+1))**((gamma+1)/(2 * (gamma-1))))
+    Rt = np.sqrt(throat_A / np.pi)
+    return Rt
 
 def isentropic_nozzle_flow(eps, data: dict):
     # Unpack data dictionary
@@ -26,8 +31,8 @@ def isentropic_nozzle_flow(eps, data: dict):
 
 
 def main_basic(data: dict):
-    Pe, Pc, Tc, gamma, size, R, Rt, k, mu = (data["Pe"], data["Pc"], data["Tc"], data["gamma"], data["size"],
-                                      data["R"], data["Rt"], data["k"], data["mu"])
+    Pe, Pc, Tc, gamma, size, R, Rt, k, mu, mdot = (data["Pe"], data["Pc"], data["Tc"], data["gamma"], data["size"],
+                                      data["R"], data["Rt"], data["k"], data["mu"], data["mdot"])
 
     # Build nozzle
     x, y, a = build_nozzle(data=data)
@@ -36,25 +41,41 @@ def main_basic(data: dict):
     a_min = min(a)
     eps: list = a/a_min
 
+
     # Isolate subsonic and supersonic with a negative sign (will be zeroed out eventually)
     ind = np.where(eps == 1.0)[0][0]
     eps[:ind] *= -1
 
-    # Solve isentropic relations
+    # == ISENTROPIC FLOW CALCULATIONS == #
     flow: dict = isentropic_nozzle_flow(eps=eps, data=data)
+
+    exit_vel = flow["U"][-1]
+
+    print(f"Throat Diameter = {(min(y)*2):.4f} m")
+    print(f"Exit Velocity = {exit_vel:.2f} m/s")
+    print(f"Exit Diameter = {(y[-1]*2):.2f} m")
+    print(f"Total Force @ SL = {(exit_vel * mdot/1e3):.2f} kN")
+    print(f"Total Engine Length = {x[-1]:.2f} m")
+    # print(f"Expansion Ratio = {(flow["P"][-1]/Pe):.2f}")
+
+    # Flow plotting
     flows = [flow["M"], flow["U"], flow["T"], flow["P"], flow["rho"]]
     names = ["M", "U", "T", "P", "rho"]
     subnames = [None, None, None, None, None]
-    # utils.plot_flow_char(x=x, data=flows, labels=names)
 
-    # Solve for heat transfer
+    # == END == #
+
+    # == HEAT TRANSFER == #
     cp = gamma * R / (gamma - 1)
     q: dict = bartz_heat_transfer(x=x, y=y, cp=cp,
                                   T=flow["T"], M=flow["M"], info=data)
 
+    # Heat transfer plotting
     flows1 = [q["qdot"], (q["T_wi"], q["T_wo"])]
     names1 = ["Heat Flux q", "Temps"]
     subnames1 = [None, ["Inner Temps", "Outer Temps"]]
+
+    # == END == #
 
     # Tc_out is the temperature of coolant leaving the regens and entering the injector
     # Tc_out is also a target value
@@ -68,6 +89,7 @@ def main_basic(data: dict):
     subnames2 = [None]
 
 
+    # == PLOTTING == #
     flows = flows + flows1 + flows2
     names = names + names1 + names2
     subnames = subnames + subnames1 + subnames2
@@ -79,17 +101,32 @@ def main_basic(data: dict):
 if __name__ == '__main__':
 
     # == ENGINE INFO == #
-    info = {"Pc": 2.013e6,      # Chamber Pressure [Pa]
+    # info = {"Pc": 2.013e6,      # Chamber Pressure [Pa]
+    #         "Pe": 1.01325e5,    # Ambient Pressure (exit) [Pa]
+    #         "Tc": 3200,         # Chamber temp [K]
+    #         "mdot": 2.8,        # Mass Flow Rate [kg/s]
+    #         "gamma":1.22,       # Hot gas specific heat ratio
+    #         "R": 350,           # Hot gas ideal gas constant
+    #         "mu": 8.617e-4,     # Hot gas dynamic viscosity
+    #         "k":0.5937,         # Wall thermal conductivity
+    #         "Rt": 0.05,         # Throat radius
+    #         "size": 0.8,        # Engine proportion (% of rao nozzle)
+    #         "plots": "no"       # Choice of engine plotting (no, 2D, 3D)
+    #         }
+
+    info = {"Pc": 10.8E6,       # Chamber Pressure [Pa]
             "Pe": 1.01325e5,    # Ambient Pressure (exit) [Pa]
-            "Tc": 3200,         # Chamber temp [K]
-            "gamma":1.22,       # Hot gas specific heat ratio
-            "R": 350,           # Hot gas ideal gas constant
+            "Tc": 3600,         # Chamber temp [K]
+            "mdot": 650,       # Mass Flow Rate [kg/s]
+            "gamma": 1.22,      # Hot gas specific heat ratio
+            "R": 380,           # Hot gas ideal gas constant
             "mu": 8.617e-4,     # Hot gas dynamic viscosity
-            "k":0.5937,         # Wall thermal conductivity
-            "Rt": 0.05,         # Throat radius
-            "size": 0.8,        # Engine proportion (% of rao nozzle)
+            "k": 0.5937,        # Wall thermal conductivity
+            "size": 0.6,        # Engine proportion (% of rao nozzle)
             "plots": "no"       # Choice of engine plotting (no, 2D, 3D)
             }
+
+    info["Rt"] = throat_radius(flow=info)
 
     # == RUN ME == #
     main_basic(data=info)

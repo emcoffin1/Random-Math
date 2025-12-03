@@ -1,96 +1,125 @@
 import matplotlib.pyplot as plt
 import pandas as pd
-import numpy as np
-from scipy.signal import savgol_filter
 
-one = pd.read_excel("drags2.xlsx", sheet_name=0, usecols="F:N").dropna()
-two = pd.read_excel("drags2.xlsx", sheet_name=0, usecols="T:AB").dropna()
-three = pd.read_excel("drags2.xlsx", sheet_name=0, usecols="AH:AP").dropna()
-four = pd.read_excel("drags2.xlsx", sheet_name=0, usecols="AV:BD").dropna()
+# ===========================
+# Load Data
+# ===========================
+one   = pd.read_excel("NozzleJet.xlsx", sheet_name=0, usecols="D:M",  skiprows=1)
+two   = pd.read_excel("NozzleJet.xlsx", sheet_name=0, usecols="O:X",  skiprows=1)
+three = pd.read_excel("NozzleJet.xlsx", sheet_name=0, usecols="Z:AI", skiprows=1)
+four  = pd.read_excel("NozzleJet.xlsx", sheet_name=0, usecols="AK:AT", skiprows=1)
+gen   = pd.read_excel("NozzleJet.xlsx", sheet_name=0, usecols="AW:BF", skiprows=1)
 
-bl_x = pd.read_excel("drags2.xlsx", sheet_name=0, usecols="BI").dropna()
-bl_h = pd.read_excel("drags2.xlsx", sheet_name=0, usecols="BJ").dropna()
-sf_shear = pd.read_excel("drags2.xlsx", sheet_name=0, usecols="BK").dropna()
-sf_re = pd.read_excel("drags2.xlsx", sheet_name=0, usecols="BL").dropna()
-sf_mom = pd.read_excel("drags2.xlsx", sheet_name=0, usecols="BM").dropna()
+# Extract columns
+one_v   = one["Velocity (mean) m/s"].dropna()
+two_v   = two["Velocity (mean) m/s.1"].dropna()
+three_v = three["Velocity (mean) m/s.2"].dropna()
+four_v  = four["Velocity (mean) m/s.3"].dropna()
 
-print(one.columns.tolist())
-print(two.columns.tolist())
-print(three.columns.tolist())
-print(four.columns.tolist())
+one_r   = one["r from center"].dropna()
+two_r   = two["r from center.1"].dropna()
+three_r = three["r from center.2"].dropna()
+four_r  = four["r from center.3"].dropna()
 
-# f_degree = one["Degree"]
-one_v = one["Local Velocity"]
-two_v = two["Local Velocity.1"]
-three_v = three["Local Velocity.2"]
-four_v = four["Local Velocity.3"]
+# ===========================
+# Plot 1: Velocity vs Radius
+# ===========================
+def plot_velocity_vs_radius(v_lists, r_lists, titles):
+    fig, axes = plt.subplots(1, 4, figsize=(12, 3), sharex=True, sharey=True)
 
-one_h = one["Elevation"]
-two_h = two["Elevation.1"]
-three_h = three["Elevation.2"]
-four_h = four["Elevation.3"]
+    # Determine global axis limits
+    vmin = min(v.min() for v in v_lists)
+    vmax = max(v.max() for v in v_lists)
+    rmin = min(r.min() for r in r_lists)
+    rmax = max(r.max() for r in r_lists)
 
-one_v = savgol_filter(one_v, window_length=7, polyorder=3)
-two_v = savgol_filter(two_v, window_length=7, polyorder=3)
-three_v = savgol_filter(three_v, window_length=7, polyorder=3)
-four_v = savgol_filter(four_v, window_length=7, polyorder=3)
+    for ax, v, r, title in zip(axes, v_lists, r_lists, titles):
+        ax.plot(v, r, marker='o', markersize=3)
+        ax.set_title(title)
+        ax.set_xlabel("Velocity (m/s)")
+        ax.grid(True, linestyle='--', alpha=0.5)
 
-one_dv = np.diff(one_v)
-two_dv = np.diff(two_v)
-three_dv = np.diff(three_v)
-four_dv = np.diff(four_v)
+        ax.set_xlim(vmin, vmax)
+        ax.set_ylim(rmin, rmax)
 
-threshold = 0.1
-window = 5
-datasets = [("0.1 m", one_v, one_dv, one_h),
-             ("0.2 m", two_v, two_dv, two_h),
-             ("0.3 m", three_v, three_dv, three_h),
-             ("0.4 m", four_v, four_dv, four_h)]
+    axes[0].set_ylabel("Radius r (m)")
+    plt.suptitle("Jet Velocity Profiles at Different x/D")
+    plt.tight_layout()
+    plt.show()
 
-for label, v, dv, h in datasets:
-    for i in range(len(dv) - window):
-        if np.all(np.abs(dv[i:i+window]) < threshold):
-            print(f"{label}-- index: {i+1}, vel: {v[i+1]:.3f} m/s, height: {h[i+1]}")
-            # v = v[:i+1]
-            # h = v[:i+1]
-            break
 
-flows = [("Boundary Layer Height", bl_h),
-         ("Skin Friction (Shear)", sf_shear),
-         ("Skin Friction (Re)", sf_re),
-         ("Skin Friction (Shear)", sf_mom)]
-for l, i in flows:
-    plt.plot(bl_x, i, label=l)
-plt.grid()
-plt.legend()
-plt.title("Boundary Layer Characteristics Across Plate")
-plt.ylabel("Boundary Layer Height (m)")
-plt.xlabel("Station (m)")
-plt.tight_layout()
+# ===========================
+# Plot 2: U/U_m vs r/D
+# ===========================
+one_u_um   = one["U/U_m"].dropna()
+two_u_um   = two["U/U_m.1"].dropna()
+three_u_um = three["U/U_m.2"].dropna()
+four_u_um  = four["U/U_m.3"].dropna()
+
+one_r_d   = one["r/D"].dropna()
+two_r_d   = two["r/D.1"].dropna()
+three_r_d = three["r/D.2"].dropna()
+four_r_d  = four["r/D.3"].dropna()
+
+
+def plot_u_over_um_vs_r_over_d(u_lists, r_lists, titles):
+    fig, axes = plt.subplots(1, 4, figsize=(12, 3))
+
+    for ax, u, r, title in zip(axes, u_lists, r_lists, titles):
+        ax.plot(u, r, 'b')
+        ax.set_title(title)
+        ax.set_xlabel("U / U_m")
+        ax.set_xlim(0, 1.1)
+        ax.grid(True)
+
+    axes[0].set_ylabel("r/D")
+    plt.suptitle("Normalized Jet Profiles (U/U_m vs r/D)")
+    plt.tight_layout()
+    plt.show()
+
+
+
+gen_um_u0 = gen["Um/U0"].dropna()
+gen_xd = gen["x/D"].dropna()
+
+gen_q_q0 = gen["Q/Q0"].dropna()
+
+gen_r_2 = gen["r half / D"].dropna()
+
+
+# ===========================
+# Call Both Plots
+# ===========================
+titles = ["x/D = 0.1", "x/D = 1.0", "x/D = 2.5", "x/D = 5.0"]
+
+plot_velocity_vs_radius(
+    [one_v, two_v, three_v, four_v],
+    [one_r, two_r, three_r, four_r],
+    titles
+)
+
+plot_u_over_um_vs_r_over_d(
+    [one_u_um, two_u_um, three_u_um, four_u_um],
+    [one_r_d, two_r_d, three_r_d, four_r_d],
+    titles
+)
+
+
+plt.plot(gen_xd, gen_um_u0)
+plt.xlabel("x/D")
+plt.ylabel("Um/U0")
+plt.title("x/D vs Um/U0")
 plt.show()
 
 
-#
-# fig, axes = plt.subplots(1, 4, sharex=True, sharey=True, figsize=(16, 4))
-#
-# datasets = [
-#     (one_v, one_h, "0.1 m"),
-#     (two_v, two_h, "0.2 m"),
-#     (three_v, three_h, "0.3 m"),
-#     (four_v, four_h, "0.4 m")
-# ]
-#
-# for ax, (v, h, lbl) in zip(axes, datasets):
-#     ax.plot(v, h, label=lbl)
-#     ax.grid(True)
-#     # ax.legend(loc="upper right")
-#     ax.set_title(lbl)
-#     ax.set_aspect("auto")   # let matplotlib pick a good ratio
-#
-# # Shared labels
-# fig.supxlabel("Velocity (m/s)")
-# fig.supylabel("Elevation (m)")
-# fig.suptitle("Velocity Gradient per Station Using Savitzky-Golay Filtering")
-# plt.tight_layout(pad=2.0, w_pad=2.0)
-# plt.show()
-#
+plt.plot(gen_xd, gen_q_q0)
+plt.xlabel("x/D")
+plt.ylabel("Q/Q0")
+plt.title("x/D vs Q/Q0")
+plt.show()
+
+plt.plot(gen_xd, gen_r_2)
+plt.xlabel("x/D")
+plt.ylabel("r(1/2) / D")
+plt.title("x/D vs r(1/2) / D")
+plt.show()

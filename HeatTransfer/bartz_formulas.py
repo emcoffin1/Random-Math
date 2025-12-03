@@ -6,19 +6,10 @@ def bartz_heat_transfer(x, y, cp, T, M, info: dict,t_wall=0.002, k_wall=30, T_co
     Uses Bartz Formula to compute the gas-side convective heat transfer coefficient
     Essentially shows you how efficiently the hot gas transfers heat to the wall.
     qdot is the heat flux per unit area, or how much heat is transferred per area of wall
-    :param gamma:
-    :param R:
-    :param Pc:
-    :param rt:
     :param x:
     :param y:
     :param cp:
-    :param k:
-    :param mu:
-    :param Tc:
     :param T:
-    :param Tw:
-    :param Pr:
     :param w:
     :return:
     """
@@ -70,6 +61,7 @@ def bartz_heat_transfer(x, y, cp, T, M, info: dict,t_wall=0.002, k_wall=30, T_co
         """
         # Inner wall
         T_wall_inner_new = Taw - (q_dot_res/hg)
+
         # Temperature relaxation to check difference
         # The relaxation automatically adjusts the next iteration
         T_wall_inner = 0.5*T_wall_inner_new + 0.5*T_wall_inner
@@ -109,14 +101,6 @@ def bartz_step(T_isen_stat, M, Tc, y, Dt, Pc, cp, k, mu, gamma=1.22, R=350, w=0.
 
     return hg
 
-def dittus_step(mu, cp, k, Dh, kc):
-
-    # Uses Re, Pr, k, and D to determine the heat trasnfer coefficient into the coolant
-    Re
-
-    Pr_quat = (mu*cp/k)**(0.4)
-    Re = Re**(0.8)
-    Nu = 0.023*Re*Pr_quat
 
 
 def total_heat_flux(qdot, x, y, cp, Tc_in, Tc_out,):
