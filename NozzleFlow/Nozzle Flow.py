@@ -84,21 +84,22 @@ def main_basic(data: dict):
     # Tc_out is also a target value
     # Compute the total heat transfer and mdot
     Tc_out = 350
-    # Q: dict = total_heat_flux(qdot=q["qdot"], x=x, y=y, cp=cp, Tc_in=q["T_ci"], Tc_out=Tc_out)
+    Q: dict = total_heat_flux(qdot=q["qdot"], x=x, y=y, cp=cp, Tc_in=q["T_ci"], Tc_out=Tc_out)
     # print(f"Mass flow rate (first pass): {Q["mdot"]:.3f}kg/s")
     # print(f"Total heat flux (Q): {Q["Qtotal"]:.2f}W")
-    # flows2 = [Q["Q"]]
-    # names2 = ["Total Q"]
-    # subnames2 = [None]
+    flows2 = [Q["Q"]]
+    names2 = ["Total Q"]
+    subnames2 = [None]
 
 
     # == PLOTTING == #
-    # flows = flows + flows1 + flows2
-    # names = names + names1 + names2
-    # subnames = subnames + subnames1 + subnames2
-    # utils.plot_flow_chart(x=x, data=flows, labels=names, sublabels=subnames)
+    flows = flows + flows1 + flows2
 
-    # utils.plot_flow_field(x, y, data=q["qdot"], label="Heat Flux")
+    names = names + names1 + names2
+    subnames = subnames + subnames1 + subnames2
+    utils.plot_flow_chart(x=x, data=flows, labels=names, sublabels=subnames)
+
+    utils.plot_flow_field(x, y, data=q["qdot"], label="Heat Flux")
 
 
 if __name__ == '__main__':
@@ -117,16 +118,16 @@ if __name__ == '__main__':
     #         "plots": "no"       # Choice of engine plotting (no, 2D, 3D)
     #         }
 
-    info = {"Pc": 24500000,       # Chamber Pressure [Pa]
+    info = {"Pc": 2.013e6,       # Chamber Pressure [Pa]
             "Pe": 1.01325e5,    # Ambient Pressure (exit) [Pa]
-            "Tc": 3650,         # Chamber temp [K]
-            "mdot": 2390/4,       # Mass Flow Rate [kg/s]
+            "Tc": 3200,         # Chamber temp [K]
+            "mdot": 1.89,       # Mass Flow Rate [kg/s]
             "gamma": 1.23,      # Hot gas specific heat ratio
             "R": 370,           # Hot gas ideal gas constant
             "mu": 8.617e-4,     # Hot gas dynamic viscosity
             "k": 0.5937,        # Wall thermal conductivity
-            "size": 0.8,        # Engine proportion (% of rao nozzle)
-            "plots": "3D"       # Choice of engine plotting (no, 2D, 3D)
+            "size": 1.0,        # Engine proportion (% of rao nozzle)
+            "plots": "2D"       # Choice of engine plotting (no, 2D, 3D)
             }
 
     info["Rt"] = throat_radius(flow=info)

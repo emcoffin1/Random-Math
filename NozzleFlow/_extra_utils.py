@@ -157,7 +157,7 @@ def plot_flow_chart(x, data, labels, sublabels=None):
     plt.show()
 
 
-def convert_to_func(x, y, filename="nozzle_curve.txt"):
+def convert_to_func(x, y, save, filename="nozzle_curve.txt"):
     """
     Exports (x, y) nozzle geometry as a SolidWorks-compatible text file for
     'Curve Through XYZ Points' import.
@@ -182,11 +182,12 @@ def convert_to_func(x, y, filename="nozzle_curve.txt"):
     z_dense = np.zeros_like(x_dense)
 
     # Stack columns: X Y Z
-    data = np.column_stack((x_dense, y_dense, z_dense))
-    np.savetxt(filename, data, fmt="%.6f", delimiter="\t")
+    if save:
+        data = np.column_stack((x_dense, y_dense, z_dense))
+        np.savetxt(filename, data, fmt="%.6f", delimiter="\t")
 
-    print(f"✅ Saved SolidWorks-compatible curve: {filename} ({len(x_dense)} points)")
-    print("→ SolidWorks: Insert > Curve > Curve Through XYZ Points > Select this .txt")
+        print(f"✅ Saved SolidWorks-compatible curve: {filename} ({len(x_dense)} points)")
+        print("→ SolidWorks: Insert > Curve > Curve Through XYZ Points > Select this .txt")
     return x_dense, y_dense
 
 

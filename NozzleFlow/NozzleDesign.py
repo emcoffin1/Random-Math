@@ -1,7 +1,7 @@
 import numpy as np
 from MachSolver import area_ratio_from_M
 from _extra_utils import plot_engine, convert_to_func
-from scipy.interpolate import interp1d, splrep, splev, PchipInterpolator
+from scipy.interpolate import CubicSpline
 import matplotlib.pyplot as plt
 
 
@@ -180,10 +180,12 @@ def build_nozzle(data: dict, eps=None):
     x = np.concatenate((xen[::-1], xe, xq))
     y = np.concatenate((yen[::-1], ye, yq))
 
+    sort_idx = np.argsort(x)
+    x, y = np.array(x)[sort_idx], np.array(y)[sort_idx]
+
+    x, y = convert_to_func(x=x, y=y, save=False)
+
     a = area_conversion(y)
-
-    # convert_to_func(x=x, y=y)
-
 
     if plots == "no":
         # plt.plot(x, y)
