@@ -1,6 +1,6 @@
 import numpy as np
 from MachSolver import area_ratio_from_M
-from _extra_utils import plot_engine
+from _extra_utils import plot_engine, convert_to_func
 from scipy.interpolate import interp1d, splrep, splev, PchipInterpolator
 import matplotlib.pyplot as plt
 
@@ -181,6 +181,8 @@ def build_nozzle(data: dict, eps=None):
     y = np.concatenate((yen[::-1], ye, yq))
 
     a = area_conversion(y)
+
+    # convert_to_func(x=x, y=y)
 
 
     if plots == "no":

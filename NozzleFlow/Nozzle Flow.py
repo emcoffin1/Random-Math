@@ -51,11 +51,14 @@ def main_basic(data: dict):
 
     exit_vel = flow["U"][-1]
 
+    mdot_isen = a_min * Pc / np.sqrt(Tc) * np.sqrt(gamma/R*((2/(gamma+1))**((gamma+1)/(gamma-1))))
+
     print(f"Throat Diameter = {(min(y)*2):.4f} m")
     print(f"Exit Velocity = {exit_vel:.2f} m/s")
     print(f"Exit Diameter = {(y[-1]*2):.2f} m")
     print(f"Total Force @ SL = {(exit_vel * mdot/1e3):.2f} kN")
     print(f"Total Engine Length = {x[-1]:.2f} m")
+    print(f"Mass Flow Rate = {mdot_isen:.4f} kg/s")
     # print(f"Expansion Ratio = {(flow["P"][-1]/Pe):.2f}")
 
     # Flow plotting
@@ -106,7 +109,7 @@ if __name__ == '__main__':
     #         "Tc": 3200,         # Chamber temp [K]
     #         "mdot": 2.8,        # Mass Flow Rate [kg/s]
     #         "gamma":1.22,       # Hot gas specific heat ratio
-    #         "R": 350,           # Hot gas ideal gas constant
+    #         "R": 370,           # Hot gas ideal gas constant
     #         "mu": 8.617e-4,     # Hot gas dynamic viscosity
     #         "k":0.5937,         # Wall thermal conductivity
     #         "Rt": 0.05,         # Throat radius
@@ -114,16 +117,16 @@ if __name__ == '__main__':
     #         "plots": "no"       # Choice of engine plotting (no, 2D, 3D)
     #         }
 
-    info = {"Pc": 9.7E6,       # Chamber Pressure [Pa]
+    info = {"Pc": 24500000,       # Chamber Pressure [Pa]
             "Pe": 1.01325e5,    # Ambient Pressure (exit) [Pa]
             "Tc": 3650,         # Chamber temp [K]
-            "mdot": 236,       # Mass Flow Rate [kg/s]
+            "mdot": 2390/4,       # Mass Flow Rate [kg/s]
             "gamma": 1.23,      # Hot gas specific heat ratio
             "R": 370,           # Hot gas ideal gas constant
             "mu": 8.617e-4,     # Hot gas dynamic viscosity
             "k": 0.5937,        # Wall thermal conductivity
-            "size": 1.0,        # Engine proportion (% of rao nozzle)
-            "plots": "2D"       # Choice of engine plotting (no, 2D, 3D)
+            "size": 0.8,        # Engine proportion (% of rao nozzle)
+            "plots": "3D"       # Choice of engine plotting (no, 2D, 3D)
             }
 
     info["Rt"] = throat_radius(flow=info)
