@@ -1,12 +1,19 @@
 import numpy as np
 from MachSolver import area_ratio_from_M
 from _extra_utils import plot_engine, convert_to_func
-from scipy.interpolate import CubicSpline
-import matplotlib.pyplot as plt
+from rocketcea.cea_obj import CEA_Obj
 
 
 """https://rrs.org/2023/01/28/making-correct-parabolic-nozzles/"""
 """Compare with this at some point"""
+
+def chamber_temp_cea(Pc, fuel, ox, OF):
+    cea = CEA_Obj(
+        oxName=ox,
+        fuelName=fuel
+
+
+    )
 
 def exit_mach_from_p(P_r, gamma=1.4):
     P = P_r

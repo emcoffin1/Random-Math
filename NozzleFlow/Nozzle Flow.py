@@ -1,9 +1,21 @@
-from HeatTransfer.bartz_formulas import bartz_heat_transfer, total_heat_flux
+from HeatTransfer.bartz_formulas import bartz_heat_transfer_const
 from MachSolver import mach_from_area_ratio as mach_eps
 import numpy as np
 from NozzleDesign import build_nozzle
 import _extra_utils as utils
 import matplotlib.pyplot as plt
+
+def data_at_point(A, B, value):
+    """
+    Determine a specific value
+    :param A: get index of this
+    :param B: and find that index here
+    :param value: return value at B
+    :return:
+    """
+    idx = np.argmin(np.abs(A - value))
+    return B[idx]
+
 def throat_radius(flow: dict):
     mdot, Pc, gamma, R, T = flow["mdot"], flow["Pc"], flow["gamma"], flow["R"], flow["Tc"]
     throat_A = mdot / (Pc * np.sqrt(gamma/(R*T)) * (2/(gamma+1))**((gamma+1)/(2 * (gamma-1))))
@@ -59,7 +71,7 @@ def main_basic(data: dict):
     print(f"Total Force @ SL = {(exit_vel * mdot/1e3):.2f} kN")
     print(f"Total Engine Length = {x[-1]:.2f} m")
     print(f"Mass Flow Rate = {mdot_isen:.4f} kg/s")
-    # print(f"Expansion Ratio = {(flow["P"][-1]/Pe):.2f}")
+    print(f"Expansion Ratio = {(flow["P"][-1]/Pe):.2f}")
 
     # Flow plotting
     flows = [flow["M"], flow["U"], flow["T"], flow["P"], flow["rho"]]
@@ -75,11 +87,14 @@ def main_basic(data: dict):
 
     # Heat transfer plotting
     # flows1 = [q["hg"], (q["T_wi"], q["T_wo"]), q["qdot"]]
-    flows1 = [q["hg"], q["T_aw"], q["qdot"]]
-    names1 = ["Heat Transfer Coefficient", "Temps", "Heat Transfer Rate"]
+    flows1 = [q["hg"], q["T_wi"], q["qdot"]]
+    names1 = ["Heat Transfer Coefficient", "Init Wall Temps", "Heat Transfer Rate"]
     # subnames1 = [None, ["Inner Temps", "Outer Temps"], None]
-    subnames1 = [None, ["Inner Temps", "Outer Temps"], None]
+    subnames1 = [None, None, None]
 
+    max_wall_temp_x = data_at_point(A=q["T_wi"], B=x, value=np.max(q["T_wi"]))
+
+    print(f"Max Wall Temp = {np.max(q["T_wi"]):.2f} K at {(max_wall_temp_x*1000):.2f} mm from throat")
     print(f"Average Heat Transfer Coefficient (hg) = {np.mean(q['hg']):.2f} W/m^2-k")
     print(f"Maximum Heat Transfer Coefficient (hg) = {max(q['hg']):.2f} W/m^2-k")
     print(f"Average Heat Flux (q')= {np.mean(q['qdot'])/1e6:.2f} MW/m^2")
