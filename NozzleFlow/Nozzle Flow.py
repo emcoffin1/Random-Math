@@ -125,6 +125,7 @@ def main_basic(data: dict):
 
 
 if __name__ == '__main__':
+    """Label Tc as None if you want rocketcea"""
 
     # == ENGINE INFO == #
     # info = {"Pc": 2.013e6,      # Chamber Pressure [Pa]

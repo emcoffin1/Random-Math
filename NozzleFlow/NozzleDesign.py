@@ -160,6 +160,9 @@ def build_nozzle(data: dict, eps=None):
     """
     Build the full nozzle and optionally plot
     """
+
+    if data["Tc"] is None:
+        # Run rocketcea
     Pe, Pc, T, size, mdot, Rt, gamma, R, plots = (
         data["Pe"], data["Pc"], data["Tc"], data["size"], data["mdot"], data["Rt"], data["gamma"],
         data["R"], data["plots"]
