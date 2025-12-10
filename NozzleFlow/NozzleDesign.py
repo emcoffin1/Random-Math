@@ -7,13 +7,30 @@ from rocketcea.cea_obj import CEA_Obj
 """https://rrs.org/2023/01/28/making-correct-parabolic-nozzles/"""
 """Compare with this at some point"""
 
-def chamber_temp_cea(Pc, fuel, ox, OF):
+def chamber_temp_cea(Pc, fuel, ox, OF, eps, dic):
     cea = CEA_Obj(
         oxName=ox,
         fuelName=fuel
-
-
     )
+
+    if eps is not None:
+        dic["MW"], dic["gamma"] = cea.get_Chamber_MolWt_gamma(Pc=Pc, MR=OF, eps=eps)
+        dic["cp_g"] = cea.get_Chamber_Cp(Pc=Pc, MR=OF, eps=eps) * 4186.8
+    else:
+        dic["MW"], dic["gamma"] = cea.get_Chamber_MolWt_gamma(Pc=Pc, MR=OF)
+        dic["cp_g"] = cea.get_Chamber_Cp(Pc=Pc, MR=OF) * 4186.8
+
+    dic["Tc"] = cea.get_Tcomb(Pc=Pc, MR=OF) * 5/9
+    dic["cstar"] = cea.get_Cstar(Pc=Pc, MR=OF) * 0.3048
+    dic["R"] = 8314.462618 / dic["MW"]
+
+
+def throat_radius(flow: dict):
+    mdot, Pc, gamma, R, T = flow["mdot"], flow["Pc"], flow["gamma"], flow["R"], flow["Tc"]
+    throat_A = mdot / (Pc * np.sqrt(gamma/(R*T)) * (2/(gamma+1))**((gamma+1)/(2 * (gamma-1))))
+    Rt = np.sqrt(throat_A / np.pi)
+    return Rt
+
 
 def exit_mach_from_p(P_r, gamma=1.4):
     P = P_r
@@ -156,28 +173,27 @@ def area_conversion(y):
     return a
 
 
-def build_nozzle(data: dict, eps=None):
+def build_nozzle(data: dict):
     """
     Build the full nozzle and optionally plot
     """
-
-    if data["Tc"] is None:
-        # Run rocketcea
-    Pe, Pc, T, size, mdot, Rt, gamma, R, plots = (
-        data["Pe"], data["Pc"], data["Tc"], data["size"], data["mdot"], data["Rt"], data["gamma"],
-        data["R"], data["plots"]
-    )
-
     # Pressure ratio
-    P_r = Pc / Pe
+    P_r = data["Pc"] / data["Pe"]
 
     # Exit mach
     Me = exit_mach_from_p(P_r)
 
     # Expansion ratio
-    if eps is None:
-        eps = area_ratio_from_M(Me, gamma=gamma)
+    data["eps"] = area_ratio_from_M(Me, gamma=data["gamma"])
+    data["Rt"] = throat_radius(flow=data)
+    # Recompute just incase expansion ratio really changes something
 
+    Pe, Pc, T, size, mdot, Rt, gamma, R, plots, eps = (
+        data["Pe"], data["Pc"], data["Tc"], data["size"], data["mdot"], data["Rt"], data["gamma"],
+        data["R"], data["plots"], data["eps"]
+    )
+
+    # print(f"run 2: {data}")
     # Engine Structure/shape
     L, n, e = get_angles(Rt, eps, bell_percent=size)
     points = point_selection(Rt, eps, n, e, bell_percent=size)
@@ -197,6 +213,12 @@ def build_nozzle(data: dict, eps=None):
 
     a = area_conversion(y)
 
+    a_t = min(a)
+    data["aspect_ratio"] = a / a_t
+
+    # Recompute the values
+    chamber_temp_cea(Pc=Pc, fuel=data["Fuel"], ox=data["Ox"], OF=data["OF"], eps=data["aspect_ratio"],dic=data)
+    print(f"{data["cp_g"]}")
     if plots == "no":
         # plt.plot(x, y)
         # plt.plot(x,-y)
