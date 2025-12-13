@@ -4,15 +4,17 @@ from _extra_utils import plot_engine, convert_to_func
 from rocketcea.cea_obj import CEA_Obj
 
 
+
 """https://rrs.org/2023/01/28/making-correct-parabolic-nozzles/"""
 """Compare with this at some point"""
 
 def chamber_temp_cea(Pc, fuel, ox, OF, eps, dic):
+    """Passes in metric but is converted to SI. RocketCEA returns SI and is then converted to metric"""
     cea = CEA_Obj(
         oxName=ox,
         fuelName=fuel
     )
-
+    Pc = Pc * 0.000145038
     if eps is not None:
         dic["MW"], dic["gamma"] = cea.get_Chamber_MolWt_gamma(Pc=Pc, MR=OF, eps=eps)
         dic["cp_g"] = cea.get_Chamber_Cp(Pc=Pc, MR=OF, eps=eps) * 4186.8
@@ -23,6 +25,11 @@ def chamber_temp_cea(Pc, fuel, ox, OF, eps, dic):
     dic["Tc"] = cea.get_Tcomb(Pc=Pc, MR=OF) * 5/9
     dic["cstar"] = cea.get_Cstar(Pc=Pc, MR=OF) * 0.3048
     dic["R"] = 8314.462618 / dic["MW"]
+
+    dic["k_gas"] = [v / 0.000481055 for v in [cea.get_Chamber_Transport(Pc=Pc, MR=OF)[2], cea.get_Throat_Transport(Pc=Pc, MR=OF)[2], cea.get_Exit_Transport(Pc=Pc, MR=OF)[2]]]
+    dic["mu"] = [v / 0.671968975 for v in [cea.get_Chamber_Transport(Pc=Pc, MR=OF)[1], cea.get_Throat_Transport(Pc=Pc, MR=OF)[1], cea.get_Exit_Transport(Pc=Pc, MR=OF)[1]]]
+    dic["Pr"] = [cea.get_Chamber_Transport(Pc=Pc, MR=OF)[3], cea.get_Throat_Transport(Pc=Pc, MR=OF)[3], cea.get_Exit_Transport(Pc=Pc, MR=OF)[3]]
+
 
 
 def throat_radius(flow: dict):

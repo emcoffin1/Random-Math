@@ -75,12 +75,17 @@ def main_basic(data: dict):
     print(f"Gas Constant (R): {R:.2f} J/kg-K")
     print(f"Gas Coefficient of Constant Pressure (cp_g): {data["cp_g"]:.2f} J/kg-K")
     print(f"OF Ratio: {data["OF"]:.2f}")
-    print(f"Mass Flow Rate: {mdot:2f} kg/s")
+    print(f"Mass Flow Rate: {mdot:.2f} kg/s")
     of = data["OF"]
     print(f"Fuel Flow Rate: {(mdot/ (of + 1)):.2f} kg/s")
     print(f"Ox Flow Rate: {(of * mdot / (of + 1)):.2f} kg/s")
-
-
+    k_gas = data["k_gas"]
+    print(f"Thermal Conductivity: [{k_gas[0]:.2f} -- {k_gas[1]:.2f} -- {k_gas[2]:.2f}] W/(m-K)")
+    mu = data["mu"]
+    print(f"Dynamic Viscosity: [{mu[0]:.2f} -- {mu[1]:.2f} -- {mu[2]:.2f}] Pa-s")
+    Pr = data["Pr"]
+    print(f"Prandtl Number: [{Pr[0]:.2f} -- {Pr[1]:.2f} -- {Pr[2]:.2f}]")
+    print(f"Molar Weight: {data["MW"]:.2f}")
 
 
     print("=" * 30)
@@ -116,6 +121,7 @@ def main_basic(data: dict):
 
     max_wall_temp_x = data_at_point(A=q["T_wi"], B=x, value=np.max(q["T_wi"]))
 
+    print("HEAT DATA")
     print(f"Max Wall Temp = {np.max(q["T_wi"]):.2f} K at {(max_wall_temp_x*1000):.2f} mm from throat")
     print(f"Average Heat Transfer Coefficient (hg) = {np.mean(q['hg']):.2f} W/m^2-k")
     print(f"Maximum Heat Transfer Coefficient (hg) = {max(q['hg']):.2f} W/m^2-k")
@@ -147,7 +153,7 @@ def main_basic(data: dict):
 
 
 if __name__ == '__main__':
-    """Label Tc as None if you want rocketcea"""
+    """Label CEA as true if you want to use CEA as gas properties"""
 
     # == ENGINE INFO == #
     # For air, set ox to AIR and fuel to anything, then increase OF to >1000
@@ -171,7 +177,8 @@ if __name__ == '__main__':
     #         "CEA": True
     #         }
 
-    info = {"Pc": 2.013e6,       # Chamber Pressure [Pa]
+    info = {"CEA": True,
+            "Pc": 2.013e6,       # Chamber Pressure [Pa]
             "Pe": 101325,    # Ambient Pressure (exit) [Pa]
             "Tc": 3500,         # Chamber temp [K]
             "mdot": 1.89,       # Mass Flow Rate [kg/s]
@@ -187,8 +194,7 @@ if __name__ == '__main__':
             "eps": None,
             "cp_g": None,
             "cstar": None,
-            "MW": None,
-            "CEA": True
+            "MW": None
             }
 
     if info["CEA"]:

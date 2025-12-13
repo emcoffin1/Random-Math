@@ -28,7 +28,7 @@ def bartz_heat_transfer_const(x, y, cp, T, M, info: dict,t_wall=0.002, k_wall=30
     for i in range(1):
 
         # Adiabatic wall temperature calculation
-        Pr = mu * cp / k
+        Pr = info["Pr"][1]
         r = Pr ** (1 / 3)
         T0 = Tc  # chamber stagnation; assume constant
         Taw = T0 * (1 + r * (gamma - 1) / 2 * M ** 2) / (1 + (gamma - 1) / 2 * M ** 2)
@@ -36,7 +36,7 @@ def bartz_heat_transfer_const(x, y, cp, T, M, info: dict,t_wall=0.002, k_wall=30
         hg = (0.026 / (Dt**0.2)) \
             * (Pc / c_star)**0.8 \
             * (Dt / D)**1.8 \
-            * cp * (mu**0.2) \
+            * cp * (mu[1]**0.2) \
             * (T / Taw)**(0.8 - 0.2 * w)
         """Knowing hg, we can now solve for the heat flux
         We do this by looking at the thermal resistance through all stages
