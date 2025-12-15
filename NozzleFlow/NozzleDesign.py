@@ -1,39 +1,16 @@
 import numpy as np
 from MachSolver import area_ratio_from_M
 from _extra_utils import plot_engine, convert_to_func
-from rocketcea.cea_obj import CEA_Obj
-
-
+from GasProperties import HotGas_Properties
 
 """https://rrs.org/2023/01/28/making-correct-parabolic-nozzles/"""
 """Compare with this at some point"""
 
-def chamber_temp_cea(Pc, fuel, ox, OF, eps, dic):
-    """Passes in metric but is converted to SI. RocketCEA returns SI and is then converted to metric"""
-    cea = CEA_Obj(
-        oxName=ox,
-        fuelName=fuel
-    )
-    Pc = Pc * 0.000145038
-    if eps is not None:
-        dic["MW"], dic["gamma"] = cea.get_Chamber_MolWt_gamma(Pc=Pc, MR=OF, eps=eps)
-        dic["cp_g"] = cea.get_Chamber_Cp(Pc=Pc, MR=OF, eps=eps) * 4186.8
-    else:
-        dic["MW"], dic["gamma"] = cea.get_Chamber_MolWt_gamma(Pc=Pc, MR=OF)
-        dic["cp_g"] = cea.get_Chamber_Cp(Pc=Pc, MR=OF) * 4186.8
-
-    dic["Tc"] = cea.get_Tcomb(Pc=Pc, MR=OF) * 5/9
-    dic["cstar"] = cea.get_Cstar(Pc=Pc, MR=OF) * 0.3048
-    dic["R"] = 8314.462618 / dic["MW"]
-
-    dic["k_gas"] = [v / 0.000481055 for v in [cea.get_Chamber_Transport(Pc=Pc, MR=OF)[2], cea.get_Throat_Transport(Pc=Pc, MR=OF)[2], cea.get_Exit_Transport(Pc=Pc, MR=OF)[2]]]
-    dic["mu"] = [v / 0.671968975 for v in [cea.get_Chamber_Transport(Pc=Pc, MR=OF)[1], cea.get_Throat_Transport(Pc=Pc, MR=OF)[1], cea.get_Exit_Transport(Pc=Pc, MR=OF)[1]]]
-    dic["Pr"] = [cea.get_Chamber_Transport(Pc=Pc, MR=OF)[3], cea.get_Throat_Transport(Pc=Pc, MR=OF)[3], cea.get_Exit_Transport(Pc=Pc, MR=OF)[3]]
 
 
 
 def throat_radius(flow: dict):
-    mdot, Pc, gamma, R, T = flow["mdot"], flow["Pc"], flow["gamma"], flow["R"], flow["Tc"]
+    mdot, Pc, gamma, R, T = flow["E"]["mdot"], flow["E"]["Pc"], flow["H"]["gamma"], flow["H"]["R"], flow["E"]["Tc"]
     throat_A = mdot / (Pc * np.sqrt(gamma/(R*T)) * (2/(gamma+1))**((gamma+1)/(2 * (gamma-1))))
     Rt = np.sqrt(throat_A / np.pi)
     return Rt
@@ -185,19 +162,19 @@ def build_nozzle(data: dict):
     Build the full nozzle and optionally plot
     """
     # Pressure ratio
-    P_r = data["Pc"] / data["Pe"]
+    P_r = data["E"]["Pc"] / data["E"]["Pe"]
 
     # Exit mach
     Me = exit_mach_from_p(P_r)
 
     # Expansion ratio
-    data["eps"] = area_ratio_from_M(Me, gamma=data["gamma"])
-    data["Rt"] = throat_radius(flow=data)
+    data["E"]["eps"] = area_ratio_from_M(Me, gamma=data["H"]["gamma"])
+    data["E"]["Rt"] = throat_radius(flow=data)
     # Recompute just incase expansion ratio really changes something
 
     Pe, Pc, T, size, mdot, Rt, gamma, R, plots, eps = (
-        data["Pe"], data["Pc"], data["Tc"], data["size"], data["mdot"], data["Rt"], data["gamma"],
-        data["R"], data["plots"], data["eps"]
+        data["E"]["Pe"], data["E"]["Pc"], data["E"]["Tc"], data["E"]["size"], data["E"]["mdot"], data["E"]["Rt"], data["H"]["gamma"],
+        data["H"]["R"], data["plots"], data["E"]["eps"]
     )
 
     # print(f"run 2: {data}")
@@ -221,11 +198,12 @@ def build_nozzle(data: dict):
     a = area_conversion(y)
 
     a_t = min(a)
-    data["aspect_ratio"] = a / a_t
+    data["E"]["aspect_ratio"] = a / a_t
+
 
     # Recompute the values
-    chamber_temp_cea(Pc=Pc, fuel=data["Fuel"], ox=data["Ox"], OF=data["OF"], eps=data["aspect_ratio"],dic=data)
-    print(f"{data["cp_g"]}")
+    HotGas_Properties(Pc=Pc, fuel=data["F"]["Type"], ox=data["O"]["Type"], OF=data["E"]["OF"], eps=data["E"]["eps"],dic=data)
+
     if plots == "no":
         # plt.plot(x, y)
         # plt.plot(x,-y)

@@ -1,9 +1,9 @@
 from HeatTransfer.bartz_formulas import bartz_heat_transfer_const
 from MachSolver import mach_from_area_ratio as mach_eps
 import numpy as np
-from NozzleDesign import build_nozzle, chamber_temp_cea
+from NozzleDesign import build_nozzle
 import _extra_utils as utils
-import matplotlib.pyplot as plt
+from GasProperties import HotGas_Properties, Fluid_Properties
 
 def data_at_point(A, B, value):
     """
@@ -17,14 +17,14 @@ def data_at_point(A, B, value):
     return B[idx]
 
 def throat_radius(flow: dict):
-    mdot, Pc, gamma, R, T = flow["mdot"], flow["Pc"], flow["gamma"], flow["R"], flow["Tc"]
+    mdot, Pc, gamma, R, T = flow["E"]["mdot"], flow["E"]["Pc"], flow["gamma"], flow["R"], flow["Tc"]
     throat_A = mdot / (Pc * np.sqrt(gamma/(R*T)) * (2/(gamma+1))**((gamma+1)/(2 * (gamma-1))))
     Rt = np.sqrt(throat_A / np.pi)
     return Rt
 
 def isentropic_nozzle_flow(eps, data: dict):
     # Unpack data dictionary
-    T0, P0, gamma, R = data['Tc'], data['Pc'], data['gamma'], data['R']
+    T0, P0, gamma, R = data["E"]['Tc'], data["E"]['Pc'], data["H"]['gamma'], data["H"]['R']
 
     # Compute mach through geometry
     M = np.array([mach_eps(eps=e, gamma=gamma) for e in eps])
@@ -48,8 +48,8 @@ def main_basic(data: dict):
     # Build nozzle
     x, y, a = build_nozzle(data=data)
 
-    Pe, Pc, Tc, gamma, size, R, k, mu, mdot = (data["Pe"], data["Pc"], data["Tc"], data["gamma"], data["size"],
-                                      data["R"], data["k"], data["mu"], data["mdot"])
+    Pe, Pc, Tc, gamma, size, R, k, mu, mdot = (data["E"]["Pe"], data["E"]["Pc"], data["E"]["Tc"], data["H"]["gamma"], data["E"]["size"],
+                                      data["H"]["R"], data["H"]["k"], data["H"]["mu"], data["E"]["mdot"])
 
     # Convert to ratio
     a_min = min(a)
@@ -62,8 +62,9 @@ def main_basic(data: dict):
 
     # == ISENTROPIC FLOW CALCULATIONS == #
     flow: dict = isentropic_nozzle_flow(eps=eps, data=data)
+    data["Flow"] = flow
 
-    exit_vel = flow["U"][-1]
+    exit_vel = data["Flow"]["U"][-1]
 
     mdot_isen = a_min * Pc / np.sqrt(Tc) * np.sqrt(gamma/R*((2/(gamma+1))**((gamma+1)/(gamma-1))))
 
@@ -73,19 +74,19 @@ def main_basic(data: dict):
     print(f"Chamber Temperature: {Tc:.2f} K")
     print(f"Gamma: {gamma:.2f}")
     print(f"Gas Constant (R): {R:.2f} J/kg-K")
-    print(f"Gas Coefficient of Constant Pressure (cp_g): {data["cp_g"]:.2f} J/kg-K")
-    print(f"OF Ratio: {data["OF"]:.2f}")
+    print(f"Gas Coefficient of Constant Pressure (cp_g): {data["H"]["cp"]:.2f} J/kg-K")
+    print(f"OF Ratio: {data["E"]["OF"]:.2f}")
     print(f"Mass Flow Rate: {mdot:.2f} kg/s")
-    of = data["OF"]
+    of = data["E"]["OF"]
     print(f"Fuel Flow Rate: {(mdot/ (of + 1)):.2f} kg/s")
     print(f"Ox Flow Rate: {(of * mdot / (of + 1)):.2f} kg/s")
-    k_gas = data["k_gas"]
+    k_gas = data["H"]["k"]
     print(f"Thermal Conductivity: [{k_gas[0]:.2f} -- {k_gas[1]:.2f} -- {k_gas[2]:.2f}] W/(m-K)")
-    mu = data["mu"]
+    mu = data["H"]["mu"]
     print(f"Dynamic Viscosity: [{mu[0]:.2f} -- {mu[1]:.2f} -- {mu[2]:.2f}] Pa-s")
-    Pr = data["Pr"]
+    Pr = data["H"]["Pr"]
     print(f"Prandtl Number: [{Pr[0]:.2f} -- {Pr[1]:.2f} -- {Pr[2]:.2f}]")
-    print(f"Molar Weight: {data["MW"]:.2f}")
+    print(f"Molar Weight: {data["H"]["MW"]:.2f}")
 
 
     print("=" * 30)
@@ -96,7 +97,7 @@ def main_basic(data: dict):
     print(f"Total Force @ SL = {(exit_vel * mdot/1e3):.2f} kN")
     print(f"Total Engine Length = {x[-1]:.2f} m")
     print(f"Mass Flow Rate = {mdot_isen:.4f} kg/s")
-    print(f"Expansion Ratio = {data["eps"]:.2f}")
+    print(f"Expansion Ratio = {data["E"]["eps"]:.2f}")
 
     print("=" * 30)
 
@@ -154,13 +155,20 @@ def main_basic(data: dict):
 
 if __name__ == '__main__':
     """Label CEA as true if you want to use CEA as gas properties"""
+    """
+    All variables in equations are assumed to be in reference to the hot gas unless denoted otherwise
+        ie  coolant values   : cp_c 
+            lox values       : cp_l
+            fuel values      : cp_f 
+    """
 
     # == ENGINE INFO == #
-    # For air, set ox to AIR and fuel to anything, then increase OF to >1000
-    # info = {"Pc": 3e6,       # Chamber Pressure [Pa]
+
+    # info = {"CEA": True,
+    #         "Pc": 2.013e6,       # Chamber Pressure [Pa]
     #         "Pe": 101325,    # Ambient Pressure (exit) [Pa]
     #         "Tc": 3500,         # Chamber temp [K]
-    #         "mdot": 0.7083,       # Mass Flow Rate [kg/s]
+    #         "mdot": 1.89,       # Mass Flow Rate [kg/s]
     #         "gamma": 1.4,      # Hot gas specific heat ratio
     #         "R": 287,           # Hot gas ideal gas constant
     #         "mu": 8.617e-4,     # Hot gas dynamic viscosity
@@ -168,38 +176,65 @@ if __name__ == '__main__':
     #         "size": 1.0,        # Engine proportion (% of rao nozzle)
     #         "plots": "no",       # Choice of engine plotting (no, 2D, 3D)
     #         "Fuel": "RP-1",
-    #         "Ox": "AIR",
-    #         "OF": 1000,
+    #         "Ox": "LOX",
+    #         "OF": 1.8,
     #         "eps": None,
     #         "cp_g": None,
     #         "cstar": None,
-    #         "MW": None,
-    #         "CEA": True
+    #         "MW": None
     #         }
-
+    #
     info = {"CEA": True,
-            "Pc": 2.013e6,       # Chamber Pressure [Pa]
-            "Pe": 101325,    # Ambient Pressure (exit) [Pa]
-            "Tc": 3500,         # Chamber temp [K]
-            "mdot": 1.89,       # Mass Flow Rate [kg/s]
-            "gamma": 1.4,      # Hot gas specific heat ratio
-            "R": 287,           # Hot gas ideal gas constant
-            "mu": 8.617e-4,     # Hot gas dynamic viscosity
-            "k": 16.27,        # Wall thermal conductivity
-            "size": 1.0,        # Engine proportion (% of rao nozzle)
-            "plots": "no",       # Choice of engine plotting (no, 2D, 3D)
-            "Fuel": "RP-1",
-            "Ox": "LOX",
-            "OF": 1.8,
-            "eps": None,
-            "cp_g": None,
-            "cstar": None,
-            "MW": None
+            "plots": "no",
+            "E": {
+                "Pc": 2.013e6,  # Chamber Pressure [Pa]
+                "Pe": 101325,  # Ambient Pressure (exit) [Pa]
+                "Tc": 3500,  # Chamber temp [K]
+                "mdot": 1.89,  # Mass Flow Rate [kg/s]
+                "OF": 1.8,
+                "size": 1.0,
+            },
+            "H": {
+                "mu": None,
+                "k": None,
+                "rho": None,
+                "Gamma": None,
+                "cp": None,
+                "cstar": None,
+                "MW": None,
+            },
+            "F": {
+                "Type": "RP-1",
+                "T": 298,
+                "P": None,
+                "mu": None,
+                "k": None,
+                "rho": None,
+                "Gamma": None,
+                "cp": None,
+                "cstar": None,
+                "MW": None,
+            },
+            "O": {
+                "Type": "LOX",
+                "T": -98,
+                "P": None,
+                "mu": None,
+                "k": None,
+                "rho": None,
+                "Gamma": None,
+                "cp": None,
+                "cstar": None,
+                "MW": None,
+            }
             }
 
     if info["CEA"]:
         # Run rocketcea
-        chamber_temp_cea(Pc=info["Pc"], fuel=info["Fuel"], ox=info["Ox"], OF=info["OF"], eps=info["eps"],dic=info)
+        HotGas_Properties(Pc=info["E"]["Pc"], fuel=info["F"]["Type"], ox=info["O"]["Type"], OF=info["E"]["OF"], dic=info)
+        Fluid_Properties(dic=info)
+        print(f"FUEL: {info["F"]}")
+        print(f"LOX: {info["O"]}")
 
     # print(f"run 1: {info}")
     # == RUN ME == #

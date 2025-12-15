@@ -16,11 +16,11 @@ def bartz_heat_transfer_const(x, y, cp, T, M, info: dict,t_wall=0.002, k_wall=30
     :return:
     """
     # Dictionary breakdown
-    Pc, Rt, gamma, R, k, mu, Tc, mdot = (info["Pc"], info["Rt"], info["gamma"], info["R"], info["k"], info["mu"],
-                                         info["Tc"], info["mdot"])
+    Pc, Rt, gamma, R, mu, Tc, mdot = (info["E"]["Pc"], info["E"]["Rt"], info["H"]["gamma"], info["H"]["R"], info["H"]["mu"],
+                                         info["E"]["Tc"], info["E"]["mdot"])
 
     # Variable Calcs and Assumptions
-    c_star = c_star_ideal(Tc=Tc, gamma=gamma, R=R)
+    c_star = info["H"]["cstar"] if not None else c_star_ideal(Tc=Tc, gamma=gamma, R=R)
 
     D = 2*y
     Dt = 2*Rt
@@ -28,7 +28,7 @@ def bartz_heat_transfer_const(x, y, cp, T, M, info: dict,t_wall=0.002, k_wall=30
     for i in range(1):
 
         # Adiabatic wall temperature calculation
-        Pr = info["Pr"][1]
+        Pr = info["H"]["Pr"][1]
         r = Pr ** (1 / 3)
         T0 = Tc  # chamber stagnation; assume constant
         Taw = T0 * (1 + r * (gamma - 1) / 2 * M ** 2) / (1 + (gamma - 1) / 2 * M ** 2)
@@ -72,11 +72,11 @@ def bartz_heat_transfer_1d(x, y, cp, T, M, info: dict, t_wall=0.002, k_wall=30, 
 
     """Engine and Hot Gas Information"""
     # Dictionary breakdown
-    Pc, Rt, gamma, R, k, mu, Tc, mdot = (info["Pc"], info["Rt"], info["gamma"], info["R"], info["k"], info["mu"],
-                                         info["Tc"], info["mdot"])
+    Pc, Rt, gamma, R, k, Tc, mdot, mu, cp, k = (info["E"]["Pc"], info["E"]["Rt"], info["H"]["gamma"], info["H"]["R"], info["H"]["k"],
+                                         info["E"]["Tc"], info["E"]["mdot"], info["H"]["mu"][1], info["H"]["cp"][1], info["H"]["k"][1])
 
     # Variable Calcs and Assumptions
-    c_star = c_star_ideal(Tc=Tc, gamma=gamma, R=R)
+    c_star = info["H"]["cstar"] if not None else c_star_ideal(Tc=Tc, gamma=gamma, R=R)
 
     D = 2 * y
     Dt = 2 * Rt
@@ -102,7 +102,7 @@ def bartz_heat_transfer_1d(x, y, cp, T, M, info: dict, t_wall=0.002, k_wall=30, 
     """March along x"""
     for i in range(N):
         # Gas properties
-        Pr = mu_g * cp_g[i] / k_g
+        Pr = mu * cp / k
         r_rec = Pr ** (1/3)
 
         # Adiabatic wall temperature
@@ -112,7 +112,7 @@ def bartz_heat_transfer_1d(x, y, cp, T, M, info: dict, t_wall=0.002, k_wall=30, 
         hg[i] = (0.026 / (Dt**0.2)) \
                 * (Pc / c_star)**0.8 \
                 * (Dt / D[i])**1.8 \
-                * cp_g[i] * (mu_g**0.2) \
+                * cp * (mu**0.2) \
                 * (T[i] / Taw[i])**(0.8 - 0.2 * w)
 
         # Wall temperature from resistance network
