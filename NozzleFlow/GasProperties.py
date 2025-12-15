@@ -27,22 +27,53 @@ def HotGas_Properties(Pc, fuel, ox, OF, dic, eps=None):
 
 def Fluid_Properties(dic: dict):
     """Currently assumes ideal conditions and ideal gas/fluids"""
+    mdot = dic["E"]["mdot"]
+    of = dic["E"]["OF"]
+    dic["F"]["mdot"] = mdot / (of + 1)
+    dic["O"]["mdot"] = of * mdot / (of + 1)
+
+    FLUID_MAP = {
+        "LOX": "Oxygen",
+        "GOX": "Oxygen",
+        "RP-1": "RP-1",
+        "Kerosene": "RP-1",
+        "Kero": "RP-1",
+    }
+
 
     for i in ["F", "O"]:
         fluid = dic[i]["Type"]
-        P_f = dic[i]["P"] if dic[i]["P"] is not None else dic["E"]["Pc"] - 689476
+        fluid = FLUID_MAP.get(fluid, fluid)
+
+        P_f = dic[i]["P"] if dic[i]["P"] is not None else dic["E"]["Pc"] + 689476
         T_f = dic[i]["T"] if dic[i]["T"] is not None else 298
 
         if fluid == "RP-1":
-            A = 1.8e-6
-            B = 900
-            dic[i]["rho"] = 810.0 - 0.75 * (T_f - 288.15)
-            dic[i]["mu"] = A * exp(-B * dic[i]["T"])
+            A = -7.812
+            B = 5.53e3
+            C = -1.503e6
+            D = 1.801e8
+            invT = 1 / T_f
+            ln_nu = A + B*invT + C*(invT**2) + D*(invT**3)
+            nu = 10**ln_nu * 1e-6                               # m^2/s
+            rho = 810.0 - 0.75 * (T_f - 288.15)                 # kg/m^3
+            mu = rho * nu                                       # Pa-s
+            print(rho)
+            if not (1e-4 < mu < 5e-3):
+                raise ValueError(
+                    f"Unphysical RP-1 Viscosity: mu = {mu:.3f} [Pa-s] at T = {T_f:.2f} [K]"
+                )
+
+            dic[i]["mu"] = mu
+            dic[i]["rho"] = rho
             dic[i]["cp"] = 2000
             dic[i]["k"] = 0.13
 
         else:
+
             dic[i]["rho"] = PropsSI("D", "T", T_f, "P", P_f, fluid)
             dic[i]["mu"] = PropsSI("V", "T", T_f, "P", P_f, fluid)
             dic[i]["cp"] = PropsSI("C", "T", T_f, "P", P_f, fluid)
             dic[i]["k"] = PropsSI("L", "T", T_f, "P", P_f, fluid)
+            cv = PropsSI("O", "T", T_f, "P", P_f, fluid)
+            dic[i]["gamma"] = dic[i]["cp"] / cv

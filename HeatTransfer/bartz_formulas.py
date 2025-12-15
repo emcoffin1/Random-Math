@@ -75,6 +75,7 @@ def bartz_heat_transfer_1d(x, y, cp, T, M, info: dict, t_wall=0.002, k_wall=30, 
     Pc, Rt, gamma, R, k, Tc, mdot, mu, cp, k = (info["E"]["Pc"], info["E"]["Rt"], info["H"]["gamma"], info["H"]["R"], info["H"]["k"],
                                          info["E"]["Tc"], info["E"]["mdot"], info["H"]["mu"][1], info["H"]["cp"][1], info["H"]["k"][1])
 
+    mdot_f = info["F"]["mdot"]
     # Variable Calcs and Assumptions
     c_star = info["H"]["cstar"] if not None else c_star_ideal(Tc=Tc, gamma=gamma, R=R)
 
