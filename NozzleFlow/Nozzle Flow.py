@@ -139,6 +139,14 @@ def main_basic(data: dict):
     max_wall_temp_x = data_at_point(A=q["T_wi"], B=x, value=np.max(q["T_wi"]))
     max_wall_temp = np.max(q["T_wi"])
 
+    print("COOLING GEOMETRY")
+    print(f"Number of channels: {data["C"]["num_ch"]}")
+    print(f"Spacing between channels: {(data["C"]["spacing"]*1000):.2f} mm")
+    print(f"Maximum channel thickness")
+
+
+    print("=" * 30)
+
     print("HEAT DATA")
     print(f"Max Wall Temp = {max_wall_temp:.2f} K at {(max_wall_temp_x*1000):.2f} mm from throat")
     print(f"Average Heat Transfer Coefficient (hg) = {np.mean(q['hg']):.2f} W/m^2-k")
@@ -216,8 +224,6 @@ if __name__ == '__main__':
                 "mdot": 1.89,  # Mass Flow Rate [kg/s]
                 "OF": 1.8,
                 "size": 1.0,
-                "Dh": 0.005,
-                "Channel_num": 20,
             },
             "H": {
                 "mu": None,
@@ -259,6 +265,14 @@ if __name__ == '__main__':
                 # "Type": "Tungsten",
                 "Type": "Copper Chromium",
                 "thickness": 0.02
+            },
+            "C": {
+                "Type": "Circle",
+                "thickness": None,
+                "width": 0.005,     # Diameter if circle geometry
+                "spacing": 0.002,   # Required for number of channel computation
+                "height": None,
+                "num_ch": None,
             },
             "Flow": {},
 

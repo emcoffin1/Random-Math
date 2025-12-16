@@ -39,6 +39,7 @@ def bartz_heat_transfer_const(info: dict, w=0.7):
             * cp * (mu**0.2) \
             * (T / Taw)**(0.8 - 0.2 * w)
 
+
         """Knowing hg, we can now solve for the heat flux
         We do this by looking at the thermal resistance through all stages
         In this section, we only care about gas side to wall conduction to ambient
@@ -110,7 +111,7 @@ def bartz_heat_transfer_1d(info: dict, w=0.7):
     for i in range(N-1, -1, -1):
 
 
-        dittus_appro(dic=info, dimension=1)
+        dittus_appro(dic=info, dimension=1, iteration=i)
         h_f = info["F"]["h"]
 
         # Hot Gas properties
@@ -149,8 +150,9 @@ def bartz_heat_transfer_1d(info: dict, w=0.7):
     return dic
 
 
-def dittus_appro(dic:dict, dimension: int):
+def dittus_appro(dic:dict, dimension: int, iteration: int):
     """Computes convective heat transfer coefficient for the coolant in channels"""
+    i = iteration
     # Update some fluid properties if necessary
     # Only for 0 dimensional/constant coolant temp
     if dimension != 0:
@@ -158,13 +160,27 @@ def dittus_appro(dic:dict, dimension: int):
 
     rho, mu, k, cp, Pr, mdot = (dic["F"]["rho"], dic["F"]["mu"], dic["F"]["k"], dic["F"]["cp"],
                                 dic["F"]["Pr"], dic["F"]["mdot"])
-    Dh, ch_num = dic["E"]["Dh"], dic["E"]["Channel_num"]
+    type, width, thickness_w, spacing, height = (dic["C"]["Type"], dic["C"]["width"], dic["W"]["thickness"],
+                                                 dic["C"]["spacing"], dic["C"]["height"])
 
-    Ah = np.pi * (Dh/2)**2
+    if dic["C"]["num_ch"] is not None:
+        num_ch = dic["C"]["num_ch"]
+    else:
+        num_ch = 2 * np.pi * (np.min(dic["Flow"]["y"]) + thickness_w) / (2 * spacing)
+        dic["C"]["num_ch"] = round(num_ch,0)
+
+    # Compute hydraulic diameter depending on shape type
+    if type == "Square":
+        Ah = np.pi / num_ch * (height**2 + 2*dic["Flow"]["y"][i]*height + 2*thickness_w*height) - (spacing*height)
+    elif type == "Circle":
+        Dh = dic["C"]["width"]
+        Ah = np.pi * (Dh/2)**2
+
+
 
     # Using mass flux to avoid using velocity
     if mdot is not None and Ah is not None:
-        G = mdot / (Ah * ch_num)
+        G = mdot / (Ah * num_ch)
         Re = G * Dh / mu
     else:
         raise ValueError("Need fuel mass flow rate and channel area (flow area) "
