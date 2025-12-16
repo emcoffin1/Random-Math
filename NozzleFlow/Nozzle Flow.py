@@ -1,9 +1,11 @@
-from HeatTransfer.bartz_formulas import bartz_heat_transfer_const
+from numpy.f2py.crackfortran import dimensionpattern
+
+from HeatTransfer.bartz_formulas import bartz_heat_transfer_const, bartz_heat_transfer_1d
 from MachSolver import mach_from_area_ratio as mach_eps
 import numpy as np
 from NozzleDesign import build_nozzle
 import _extra_utils as utils
-from GasProperties import HotGas_Properties, Fluid_Properties
+from GasProperties import HotGas_Properties, Fluid_Properties, Material_Properties
 
 def data_at_point(A, B, value):
     """
@@ -39,7 +41,11 @@ def isentropic_nozzle_flow(eps, data: dict):
     # Compute density
     rho = P / (R * T)
 
-    return {"M": M, "U": U, "T": T, "P": P, "rho": rho}
+    data["Flow"]["M"] = M
+    data["Flow"]["P"] = P
+    data["Flow"]["T"] = T
+    data["Flow"]["U"] = U
+    data["Flow"]["rho"] = rho
 
 
 def main_basic(data: dict):
@@ -55,14 +61,19 @@ def main_basic(data: dict):
     a_min = min(a)
     eps: list = a/a_min
 
+    data["Flow"]["x"] = x
+    data["Flow"]["y"] = y
+    data["Flow"]["a"] = a
+
+
 
     # Isolate subsonic and supersonic with a negative sign (will be zeroed out eventually)
     ind = np.where(eps == 1.0)[0][0]
     eps[:ind] *= -1
 
     # == ISENTROPIC FLOW CALCULATIONS == #
-    flow: dict = isentropic_nozzle_flow(eps=eps, data=data)
-    data["Flow"] = flow
+    isentropic_nozzle_flow(eps=eps, data=data)
+
 
     exit_vel = data["Flow"]["U"][-1]
 
@@ -74,7 +85,7 @@ def main_basic(data: dict):
     print(f"Chamber Temperature: {Tc:.2f} K")
     print(f"Gamma: {gamma:.2f}")
     print(f"Gas Constant (R): {R:.2f} J/kg-K")
-    print(f"Gas Coefficient of Constant Pressure (cp_g): {data["H"]["cp"]:.2f} J/kg-K")
+    print(f"Gas Coefficient of Constant Pressure (cp_g): {data["H"]["cp"][1]:.2f} J/kg-K")
     print(f"OF Ratio: {data["E"]["OF"]:.2f}")
     print(f"Mass Flow Rate: {mdot:.2f} kg/s")
     of = data["E"]["OF"]
@@ -102,32 +113,43 @@ def main_basic(data: dict):
     print("=" * 30)
 
     # Flow plotting
-    flows = [flow["M"], flow["U"], flow["T"], flow["P"], flow["rho"]]
+    flows = [data["Flow"]["M"], data["Flow"]["U"], data["Flow"]["T"], data["Flow"]["P"], data["Flow"]["rho"],]
     names = ["M", "U", "T", "P", "rho"]
     subnames = [None, None, None, None, None]
 
     # == END == #
 
     # == HEAT TRANSFER == #
-    cp = gamma * R / (gamma - 1)
-    q: dict = bartz_heat_transfer_const(x=x, y=y, cp=cp,
-                                  T=flow["T"], M=flow["M"], info=data)
+    dims = data["dimensions"]
+    if dims == 0:
+        q: dict = bartz_heat_transfer_const(info=data)
+    elif dims == 1:
+        HotGas_Properties(Pc=info["E"]["Pc"], fuel=info["F"]["Type"], ox=info["O"]["Type"], OF=info["E"]["OF"],
+                          dic=info)
+
+        q: dict = bartz_heat_transfer_1d(info=data)
 
     # Heat transfer plotting
     # flows1 = [q["hg"], (q["T_wi"], q["T_wo"]), q["qdot"]]
-    flows1 = [q["hg"], q["T_wi"], q["qdot"]]
-    names1 = ["Heat Transfer Coefficient", "Init Wall Temps", "Heat Transfer Rate"]
+    flows1 = [q["hg"], q["T_wi"], q["qdot"], q["T_cool"]]
+    names1 = ["Heat Transfer Coefficient", "Init Wall Temps", "Heat Transfer Rate", "Coolant Temperature"]
     # subnames1 = [None, ["Inner Temps", "Outer Temps"], None]
-    subnames1 = [None, None, None]
+    subnames1 = [None, None, None, None]
 
     max_wall_temp_x = data_at_point(A=q["T_wi"], B=x, value=np.max(q["T_wi"]))
+    max_wall_temp = np.max(q["T_wi"])
 
     print("HEAT DATA")
-    print(f"Max Wall Temp = {np.max(q["T_wi"]):.2f} K at {(max_wall_temp_x*1000):.2f} mm from throat")
+    print(f"Max Wall Temp = {max_wall_temp:.2f} K at {(max_wall_temp_x*1000):.2f} mm from throat")
     print(f"Average Heat Transfer Coefficient (hg) = {np.mean(q['hg']):.2f} W/m^2-k")
     print(f"Maximum Heat Transfer Coefficient (hg) = {max(q['hg']):.2f} W/m^2-k")
     print(f"Average Heat Flux (q')= {np.mean(q['qdot'])/1e6:.2f} MW/m^2")
     print(f"Maximum Heat Flux (q') = {max(q['qdot'])/1e6:.2f} MW/m^2")
+    print(f"Maximum Coolant Temperature = {np.max(q['T_cool']):.2f} K")
+    melting_point = data["W"]["solidus"]
+    if max_wall_temp > melting_point:
+        excess = melting_point - max_wall_temp
+        print(f"WARNING : Maximum wall temp exceeds the melting point of {data["W"]["Type"]} by {abs(excess):.2f} K")
 
     # == END == #
 
@@ -186,6 +208,7 @@ if __name__ == '__main__':
     #
     info = {"CEA": True,
             "plots": "no",
+            "dimensions": 1,    # Complexity of heat transfer
             "E": {
                 "Pc": 2.013e6,  # Chamber Pressure [Pa]
                 "Pe": 101325,  # Ambient Pressure (exit) [Pa]
@@ -193,6 +216,8 @@ if __name__ == '__main__':
                 "mdot": 1.89,  # Mass Flow Rate [kg/s]
                 "OF": 1.8,
                 "size": 1.0,
+                "Dh": 0.005,
+                "Channel_num": 20,
             },
             "H": {
                 "mu": None,
@@ -228,15 +253,23 @@ if __name__ == '__main__':
                 "cstar": None,
                 "MW": None,
                 "mdot": None,
-            }
+            },
+            "W": {
+                # "Type": "SS 316L",
+                # "Type": "Tungsten",
+                "Type": "Copper Chromium",
+                "thickness": 0.02
+            },
+            "Flow": {},
+
+
             }
 
     if info["CEA"]:
         # Run rocketcea
         HotGas_Properties(Pc=info["E"]["Pc"], fuel=info["F"]["Type"], ox=info["O"]["Type"], OF=info["E"]["OF"], dic=info)
         Fluid_Properties(dic=info)
-        print(f"FUEL: {info["F"]}")
-        print(f"LOX: {info["O"]}")
+        Material_Properties(dic=info)
 
     # print(f"run 1: {info}")
     # == RUN ME == #

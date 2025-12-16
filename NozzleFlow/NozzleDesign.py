@@ -202,7 +202,7 @@ def build_nozzle(data: dict):
 
 
     # Recompute the values
-    HotGas_Properties(Pc=Pc, fuel=data["F"]["Type"], ox=data["O"]["Type"], OF=data["E"]["OF"], eps=data["E"]["eps"],dic=data)
+    # HotGas_Properties(Pc=Pc, fuel=data["F"]["Type"], ox=data["O"]["Type"], OF=data["E"]["OF"], eps=data["E"]["eps"],dic=data)
 
     if plots == "no":
         # plt.plot(x, y)
