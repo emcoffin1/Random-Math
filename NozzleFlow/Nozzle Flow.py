@@ -6,6 +6,7 @@ import numpy as np
 from NozzleDesign import build_nozzle
 import _extra_utils as utils
 from GasProperties import HotGas_Properties, Fluid_Properties, Material_Properties
+import matplotlib.pyplot as plt
 
 
 def data_at_point(A, B, value):
@@ -54,7 +55,7 @@ def isentropic_nozzle_flow(eps, data: dict):
 def cooling_geometry(flow: dict, alpha=0.8, beta=1.05, Re_target=2e4):
     """Generates the cooling channel geometry based on engine properties and sizes"""
     mdot = flow["F"]["mdot"]
-    r_throat = np.min(flow["Flow"]["y"])
+    r_throat = flow["E"]["r_throat"]
     thickness_wall = flow["W"]["thickness"]
     thickness_fin = flow["C"]["spacing"]
     height_fin = flow["C"]["height"]
@@ -85,28 +86,24 @@ def cooling_geometry(flow: dict, alpha=0.8, beta=1.05, Re_target=2e4):
 
 
 def main_basic(data: dict, nozzle_build: bool = True):
-
+    frmt = "{:<50} {:<10.3f} {:<10} {:<}"
+    frmt2 = "{:<50} {:<10} {:<10} {:<}"
 
     if nozzle_build:
         # Build nozzle
         x, y, a = build_nozzle(data=data)
+        cooling_geometry(flow=data)
 
     else:
-        # Read x, y, a of uploaded design
-        pass
+        x = 1
+        y = 2
+        a = 3
 
     Pe, Pc, Tc, gamma, size, R, k, mu, mdot = (data["E"]["Pe"], data["E"]["Pc"], data["E"]["Tc"], data["H"]["gamma"], data["E"]["size"],
                                       data["H"]["R"], data["H"]["k"], data["H"]["mu"], data["E"]["mdot"])
 
-    # Convert to ratio
-    a_min = min(a)
-    eps: list = a/a_min
-
-    data["Flow"]["x"] = x
-    data["Flow"]["y"] = y
-    data["Flow"]["a"] = a
-    data["Flow"]["eps"] = eps
-
+    eps = data["E"]["aspect_ratio"]
+    a_min = np.min(a)
 
 
     # Isolate subsonic and supersonic with a negative sign (will be zeroed out eventually)
@@ -116,43 +113,51 @@ def main_basic(data: dict, nozzle_build: bool = True):
     # == ISENTROPIC FLOW CALCULATIONS == #
     isentropic_nozzle_flow(eps=eps, data=data)
 
-
     exit_vel = data["Flow"]["U"][-1]
-
     mdot_isen = a_min * Pc / np.sqrt(Tc) * np.sqrt(gamma/R*((2/(gamma+1))**((gamma+1)/(gamma-1))))
 
-    print("="*30)
-    print("GAS CONDITIONS")
-    print(f"Chamber Pressure: {(Pc/1e6):.3f} MPa")
-    print(f"Chamber Temperature: {Tc:.2f} K")
-    print(f"Gamma: {gamma:.2f}")
-    print(f"Gas Constant (R): {R:.2f} J/kg-K")
-    print(f"Gas Coefficient of Constant Pressure (cp_g): {data["H"]["cp"][1]:.2f} J/kg-K")
-    print(f"OF Ratio: {data["E"]["OF"]:.2f}")
-    print(f"Mass Flow Rate: {mdot:.2f} kg/s")
+    print("="*72,f"{'|':<}")
+    print(f"{'GAS CONDITIONS':^70} {'|':>3}")
+
+    print(frmt.format("Chamber Pressure", Pc/1e6, "MPa", "|"))
+    print(frmt.format("Chamber Temperature", Tc, "K", "|"))
+    print(frmt.format("Gamma", gamma, "", "|"))
+    print(frmt.format("Gas Constant (R)", R, "J/kg-K", "|"))
+    print(frmt.format("Gas Coefficient of Constant Pressure (cp_g)", data["H"]["cp"][1], "J/kg-K", "|"))
+    print(frmt.format("OF Ratio", data["E"]["OF"], "", "|"))
+    print(frmt.format("Mass Flow Rate", mdot, "kg/s", "|"))
     of = data["E"]["OF"]
-    print(f"Fuel Flow Rate: {(mdot/ (of + 1)):.2f} kg/s")
-    print(f"Ox Flow Rate: {(of * mdot / (of + 1)):.2f} kg/s")
+    print(frmt.format("Fuel Flow Rate", mdot/ (of + 1), "kg/s", "|"))
+    print(frmt.format("Ox Flow Rate", of * mdot / (of + 1), "kg/s", "|"))
     k_gas = data["H"]["k"]
-    print(f"Thermal Conductivity: [{k_gas[0]:.2f} -- {k_gas[1]:.2f} -- {k_gas[2]:.2f}] W/(m-K)")
+    print(frmt2.format("Thermal Conductivity", "", "", "|"))
+    print(frmt.format(" ", int(k_gas[0]), "W/(m-K)", "|"))
+    print(frmt.format(" ", k_gas[1], "W/(m-K)", "|"))
+    print(frmt.format(" ", k_gas[2], "W/(m-K)", "|"))
     mu = data["H"]["mu"]
-    print(f"Dynamic Viscosity: [{mu[0]:.2f} -- {mu[1]:.2f} -- {mu[2]:.2f}] Pa-s")
+    print(frmt2.format("Dynamic Viscosity", "", "", "|"))
+    print(frmt.format("", mu[0], "Pa-s", "|"))
+    print(frmt.format("", mu[1], "Pa-s", "|"))
+    print(frmt.format("", mu[2], "Pa-s", "|"))
     Pr = data["H"]["Pr"]
-    print(f"Prandtl Number: [{Pr[0]:.2f} -- {Pr[1]:.2f} -- {Pr[2]:.2f}]")
-    print(f"Molar Weight: {data["H"]["MW"]:.2f}")
+    print(frmt2.format("Prandtl Number", "", "", "|"))
+    print(frmt.format("", Pr[0], "", "|"))
+    print(frmt.format("", Pr[1], "", "|"))
+    print(frmt.format("", Pr[2], "", "|"))
+    print(frmt.format("Molar Weight", data["H"]["MW"], "g/mol", "|"))
 
 
-    print("=" * 30)
-    print("ENGINE GEOMETRY")
-    print(f"Throat Diameter = {(min(y)*2):.4f} m")
-    print(f"Exit Velocity = {exit_vel:.2f} m/s")
-    print(f"Exit Diameter = {(y[-1]*2):.2f} m")
-    print(f"Total Force @ SL = {(exit_vel * mdot/1e3):.2f} kN")
-    print(f"Total Engine Length = {x[-1]:.2f} m")
-    print(f"Mass Flow Rate = {mdot_isen:.4f} kg/s")
-    print(f"Expansion Ratio = {data["E"]["eps"]:.2f}")
+    print("="*72, f"{'|':<}")
+    print(f"{'ENGINE GEOMETRY':^70} {'|':>3}")
 
-    print("=" * 30)
+    print(frmt.format("Throat Diameter", min(y)*2,"m", "|"))
+    print(frmt.format("Exit Velocity", exit_vel, "m/s", "|"))
+    print(frmt.format("Exit Diameter", y[-1]*2,"m", "|"))
+    print(frmt.format("Total Force @ SL", exit_vel * mdot/1e3, "kN", "|"))
+    print(frmt.format("Total Engine Length", x[-1], "m", "|"))
+    print(frmt.format("Mass Flow Rate", mdot_isen, "kg/s", "|"))
+    print(frmt.format("Expansion Ratio", np.max(eps), "kg/s", "|"))
+
 
     # Flow plotting
     flows = [data["Flow"]["M"], data["Flow"]["U"], data["Flow"]["T"], data["Flow"]["P"], data["Flow"]["rho"],]
@@ -181,21 +186,24 @@ def main_basic(data: dict, nozzle_build: bool = True):
     max_wall_temp_x = data_at_point(A=q["T_wi"], B=x, value=np.max(q["T_wi"]))
     max_wall_temp = np.max(q["T_wi"])
 
-    print("COOLING GEOMETRY")
-    print(f"Number of channels: {data["C"]["num_ch"]}")
-    print(f"Spacing between channels: {(data["C"]["spacing"]*1000):.2f} mm")
-    print(f"Maximum channel thickness")
+    print("="*72,f"{'|':<}")
+    print(f"{'COOLING GEOMETRY':^70} {'|':>3}")
+
+    print(frmt.format("Number of channels", data["C"]["num_ch"], "","|"))
+    print(frmt.format("Spacing between channels", data["C"]["spacing"]*1000, "mm", "|"))
+    print(frmt.format("Channel thickness", data["C"]["width"]*1000, "mm", "|"))
 
 
-    print("=" * 30)
+    print("="*72,f"{'|':<}")
+    print(f"{'HEAT DATA':^70} {'|':>3}")
 
-    print("HEAT DATA")
-    print(f"Max Wall Temp = {max_wall_temp:.2f} K at {(max_wall_temp_x*1000):.2f} mm from throat")
-    print(f"Average Heat Transfer Coefficient (hg) = {np.mean(q['hg']):.2f} W/m^2-k")
-    print(f"Maximum Heat Transfer Coefficient (hg) = {max(q['hg']):.2f} W/m^2-k")
-    print(f"Average Heat Flux (q')= {np.mean(q['Q_dot'])/1e6:.2f} MW/m^2")
-    print(f"Maximum Heat Flux (q') = {max(q['Q_dot'])/1e6:.2f} MW/m^2")
-    print(f"Maximum Coolant Temperature = {np.max(q['T_cool']):.2f} K")
+    print(frmt.format("Maximum Wall Temp", max_wall_temp, "K", "|"))
+    print(frmt.format("at ... from throat", max_wall_temp_x*1000, "mm", "|"))
+    print(frmt.format("Average Heat Transfer Coefficient (hot gas)", np.mean(q["hg"]), "W/m^2-K", "|"))
+    print(frmt.format("Maximum Heat Transfer Coefficient (hot gas)", max(q["hg"]), "W/m^2-K", "|"))
+    print(frmt.format("Average Heat Flux (qdot)", np.mean(q["Q_dot"]/1e6), "W/m^2-K", "|"))
+    print(frmt.format("Maximum Heat Flux (qdot)", max(q["Q_dot"]/1e6), "W/m^2-K", "|"))
+    print(frmt.format("Maximum Coolant Temp", np.mean(q["T_cool"]), "K", "|"))
     melting_point = data["W"]["solidus"]
     if max_wall_temp > melting_point:
         excess = melting_point - max_wall_temp
@@ -222,7 +230,7 @@ def main_basic(data: dict, nozzle_build: bool = True):
     subnames = subnames + subnames1 #+ subnames2
     utils.plot_flow_chart(x=x, data=flows, labels=names, sublabels=subnames)
 
-    utils.plot_flow_field(x, y, data=q["T_wi"], label="Wall Temp")
+    utils.plot_flow_field(x, y, data=q["Q_dot"], label="Heat Flux")
 
 
 if __name__ == '__main__':

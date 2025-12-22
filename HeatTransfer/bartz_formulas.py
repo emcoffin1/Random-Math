@@ -87,8 +87,8 @@ def bartz_heat_transfer_1d(info: dict):
 
     t_w, k_w = info["W"]["thickness"], info["W"]["k"]
 
-    x: list = info["Flow"]["x"]
-    y: list = info["Flow"]["y"]
+    x: list = info["E"]["x"]
+    y: list = info["E"]["y"]
     M: list = info["Flow"]["M"]
 
     N = len(x)  # Number of x points
@@ -180,7 +180,7 @@ def bartz_heat_transfer_1d(info: dict):
             T_coolant = T_coolant_new
             T_c[i] = T_coolant_new
 
-            if abs(T_coolant_new - T_coolant_in) < 0.001:
+            if abs(T_coolant_new - T_coolant_in) < 0.00001:
                 break
 
         dic = {"hg": h_hg, "Q_dot": Q_dot, "T_wi": T_w, "T_aw": Taw, "T_cool": T_c}
@@ -197,10 +197,11 @@ def bartz_approx(Taw, dic:dict, dimension: int, step: int, iteration: int):
     :return: hot gas convection coefficient
     """
 
-    Dt = np.min(dic["Flow"]["y"]) * 2
+    Dt = np.min(dic["E"]["y"]) * 2
     Pc = dic["E"]["Pc"]
     cstar = dic["H"]["cstar"]
-    eps = dic["Flow"]["eps"]
+    eps = dic["E"]["aspect_ratio"]
+    # eps = dic["Flow"]["eps"]
     Tc = dic["E"]["Tc"]
 
     M = dic["Flow"]["M"]
@@ -228,8 +229,10 @@ def bartz_approx(Taw, dic:dict, dimension: int, step: int, iteration: int):
         gamma = dic["H"]["gamma"][i]
         Pr = dic["H"]["Pr"][1]
         Mi = M[i]
+
+
         h_hg = (0.026 / Dt**0.2) * (mu**0.2 * cp / Pr**0.6) \
-             * (Pc / cstar)**0.8 * eps[i]**-0.9
+             * (Pc / cstar)**0.8 * np.abs(eps[i])**-0.9
 
         if iteration != 0:
             # Add correction if iteration is not first pass
@@ -263,7 +266,7 @@ def dittus_appro(dx:float, dic:dict, dimension: int, step: int):
     type, width, thickness_w, spacing, height = (dic["C"]["Type"], dic["C"]["width"], dic["W"]["thickness"],
                                                  dic["C"]["spacing"], dic["C"]["height"])
 
-    y = dic["Flow"]["y"][i]
+    y = dic["E"]["y"][i]
     k_wall = dic["W"]["k"]
     # Run the max number of channels if not already computed
     if dic["C"]["num_ch"] is not None:

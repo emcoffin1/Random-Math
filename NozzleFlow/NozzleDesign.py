@@ -196,9 +196,14 @@ def build_nozzle(data: dict):
     x, y = convert_to_func(x=x, y=y, save=False)
 
     a = area_conversion(y)
+    r_throat = np.min(y)
 
     a_t = min(a)
     data["E"]["aspect_ratio"] = a / a_t
+    data["E"]["x"] = x
+    data["E"]["y"] = y
+    data["E"]["a"] = a
+    data["E"]["r_throat"] = r_throat
 
 
     # Recompute the values
