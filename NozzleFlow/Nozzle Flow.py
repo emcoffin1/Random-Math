@@ -1,4 +1,4 @@
-from numpy.f2py.crackfortran import dimensionpattern
+from pandas.plotting import hist_frame
 
 from HeatTransfer.bartz_formulas import bartz_heat_transfer_const, bartz_heat_transfer_1d
 from MachSolver import mach_from_area_ratio as mach_eps
@@ -6,6 +6,7 @@ import numpy as np
 from NozzleDesign import build_nozzle
 import _extra_utils as utils
 from GasProperties import HotGas_Properties, Fluid_Properties, Material_Properties
+
 
 def data_at_point(A, B, value):
     """
@@ -18,11 +19,13 @@ def data_at_point(A, B, value):
     idx = np.argmin(np.abs(A - value))
     return B[idx]
 
+
 def throat_radius(flow: dict):
     mdot, Pc, gamma, R, T = flow["E"]["mdot"], flow["E"]["Pc"], flow["gamma"], flow["R"], flow["Tc"]
     throat_A = mdot / (Pc * np.sqrt(gamma/(R*T)) * (2/(gamma+1))**((gamma+1)/(2 * (gamma-1))))
     Rt = np.sqrt(throat_A / np.pi)
     return Rt
+
 
 def isentropic_nozzle_flow(eps, data: dict):
     # Unpack data dictionary
@@ -48,11 +51,49 @@ def isentropic_nozzle_flow(eps, data: dict):
     data["Flow"]["rho"] = rho
 
 
-def main_basic(data: dict):
+def cooling_geometry(flow: dict, alpha=0.8, beta=1.05, Re_target=2e4):
+    """Generates the cooling channel geometry based on engine properties and sizes"""
+    mdot = flow["F"]["mdot"]
+    r_throat = np.min(flow["Flow"]["y"])
+    thickness_wall = flow["W"]["thickness"]
+    thickness_fin = flow["C"]["spacing"]
+    height_fin = flow["C"]["height"]
+    mu = flow["F"]["mu"]
+
+    circum = 2 * np.pi * r_throat
+    w = thickness_fin
+
+    for _ in range(50):
+        pitch = w + thickness_fin
+        N_ch = max(1, int(np.floor(circum/pitch)))
+
+        A_ch = alpha * w * height_fin
+        P_w = beta * (2*height_fin + w)
+        Dh = 4 * A_ch / P_w
+
+        G = mdot / (N_ch * A_ch)
+        Re = G * Dh / mu
+
+        err = (Re - Re_target) / Re_target
+        if abs(err) < 1e-3:
+            break
+
+        w *= (Re / Re_target)**0.5
+
+    flow["C"]["width"] = w
+    flow["C"]["num_ch"] = N_ch
 
 
-    # Build nozzle
-    x, y, a = build_nozzle(data=data)
+def main_basic(data: dict, nozzle_build: bool = True):
+
+
+    if nozzle_build:
+        # Build nozzle
+        x, y, a = build_nozzle(data=data)
+
+    else:
+        # Read x, y, a of uploaded design
+        pass
 
     Pe, Pc, Tc, gamma, size, R, k, mu, mdot = (data["E"]["Pe"], data["E"]["Pc"], data["E"]["Tc"], data["H"]["gamma"], data["E"]["size"],
                                       data["H"]["R"], data["H"]["k"], data["H"]["mu"], data["E"]["mdot"])
@@ -64,6 +105,7 @@ def main_basic(data: dict):
     data["Flow"]["x"] = x
     data["Flow"]["y"] = y
     data["Flow"]["a"] = a
+    data["Flow"]["eps"] = eps
 
 
 
@@ -131,10 +173,10 @@ def main_basic(data: dict):
 
     # Heat transfer plotting
     # flows1 = [q["hg"], (q["T_wi"], q["T_wo"]), q["qdot"]]
-    flows1 = [q["hg"], q["T_wi"], q["qdot"], q["T_cool"]]
-    names1 = ["Heat Transfer Coefficient", "Init Wall Temps", "Heat Transfer Rate", "Coolant Temperature"]
+    flows1 = [q["T_cool"], q["hg"]]
+    names1 = ["Coolant Temperature", "h_hg"]
     # subnames1 = [None, ["Inner Temps", "Outer Temps"], None]
-    subnames1 = [None, None, None, None]
+    subnames1 = [None, None]
 
     max_wall_temp_x = data_at_point(A=q["T_wi"], B=x, value=np.max(q["T_wi"]))
     max_wall_temp = np.max(q["T_wi"])
@@ -151,8 +193,8 @@ def main_basic(data: dict):
     print(f"Max Wall Temp = {max_wall_temp:.2f} K at {(max_wall_temp_x*1000):.2f} mm from throat")
     print(f"Average Heat Transfer Coefficient (hg) = {np.mean(q['hg']):.2f} W/m^2-k")
     print(f"Maximum Heat Transfer Coefficient (hg) = {max(q['hg']):.2f} W/m^2-k")
-    print(f"Average Heat Flux (q')= {np.mean(q['qdot'])/1e6:.2f} MW/m^2")
-    print(f"Maximum Heat Flux (q') = {max(q['qdot'])/1e6:.2f} MW/m^2")
+    print(f"Average Heat Flux (q')= {np.mean(q['Q_dot'])/1e6:.2f} MW/m^2")
+    print(f"Maximum Heat Flux (q') = {max(q['Q_dot'])/1e6:.2f} MW/m^2")
     print(f"Maximum Coolant Temperature = {np.max(q['T_cool']):.2f} K")
     melting_point = data["W"]["solidus"]
     if max_wall_temp > melting_point:
@@ -180,7 +222,7 @@ def main_basic(data: dict):
     subnames = subnames + subnames1 #+ subnames2
     utils.plot_flow_chart(x=x, data=flows, labels=names, sublabels=subnames)
 
-    utils.plot_flow_field(x, y, data=q["qdot"], label="Heat Flux")
+    utils.plot_flow_field(x, y, data=q["T_wi"], label="Wall Temp")
 
 
 if __name__ == '__main__':
@@ -267,14 +309,22 @@ if __name__ == '__main__':
                 "thickness": 0.02
             },
             "C": {
-                "Type": "Circle",
-                "thickness": None,
-                "width": 0.005,     # Diameter if circle geometry
-                "spacing": 0.002,   # Required for number of channel computation
-                "height": None,
+                "Type": "Square",
+                "thickness": 0.02,  # Wall thickness
+                "width": None,     # Diameter if circle geometry
+                "spacing": 0.02,   # Fin thickness -- space between channels
+                "height": 0.02,     # Channel height
                 "num_ch": None,
+                "h": None,
+                "Nu": None,
+                "Re": None,
             },
-            "Flow": {},
+            "Flow": {
+                "x": None,
+                "y": None,
+                "a": None,
+                "eps": None
+            },
 
 
             }
@@ -287,4 +337,4 @@ if __name__ == '__main__':
 
     # print(f"run 1: {info}")
     # == RUN ME == #
-    main_basic(data=info)
+    main_basic(data=info, nozzle_build=True)
