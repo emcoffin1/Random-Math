@@ -1,4 +1,3 @@
-from pandas.plotting import hist_frame
 
 from HeatTransfer.bartz_formulas import bartz_heat_transfer_const, bartz_heat_transfer_1d
 from MachSolver import mach_from_area_ratio as mach_eps
@@ -6,6 +5,7 @@ import numpy as np
 from NozzleDesign import build_nozzle
 import _extra_utils as utils
 from GasProperties import HotGas_Properties, Fluid_Properties, Material_Properties
+from GeometryDesign import solve_width_for_dp
 import matplotlib.pyplot as plt
 
 
@@ -52,7 +52,7 @@ def isentropic_nozzle_flow(eps, data: dict):
     data["Flow"]["rho"] = rho
 
 
-def cooling_geometry(flow: dict, alpha=0.8, beta=1.05, Re_target=2e4):
+def cooling_geometry(flow: dict, alpha=0.8, beta=1.05, Re_target=2e4, N_max=500, N_min=10, w_min=1e-4, w_max=5e-2):
     """Generates the cooling channel geometry based on engine properties and sizes"""
     mdot = flow["F"]["mdot"]
     r_throat = flow["E"]["r_throat"]
@@ -64,25 +64,52 @@ def cooling_geometry(flow: dict, alpha=0.8, beta=1.05, Re_target=2e4):
     circum = 2 * np.pi * r_throat
     w = thickness_fin
 
-    for _ in range(50):
-        pitch = w + thickness_fin
-        N_ch = max(1, int(np.floor(circum/pitch)))
-
+    def Re_of_w(w, N_ch):
         A_ch = alpha * w * height_fin
-        P_w = beta * (2*height_fin + w)
+        P_w = beta * (2 * height_fin + w)
         Dh = 4 * A_ch / P_w
-
         G = mdot / (N_ch * A_ch)
-        Re = G * Dh / mu
+        return G * Dh / mu
 
-        err = (Re - Re_target) / Re_target
-        if abs(err) < 1e-3:
-            break
+    best = None
 
-        w *= (Re / Re_target)**0.5
+    for N_ch in range(N_min, N_max+1):
 
-    flow["C"]["width"] = w
-    flow["C"]["num_ch"] = N_ch
+        w_upper_geom = circum / N_ch - thickness_fin
+        if w_upper_geom <= w_min:
+            continue
+
+        lo = w_min
+        hi = min(w_max, w_upper_geom)
+
+        Re_lo = Re_of_w(lo, N_ch)
+        Re_hi = Re_of_w(hi, N_ch)
+
+        if not(min(Re_lo, Re_hi) <= Re_target <= max(Re_lo, Re_hi)):
+            continue
+
+        # bisection method
+        for _ in range(60):
+            mid = 0.5*(lo + hi)
+            Re_mid = Re_of_w(mid, N_ch)
+
+            if Re_mid < Re_target:
+                lo = mid
+            else:
+                hi = mid
+
+        w_sol = 0.5*(lo + hi)
+        Re_sol = Re_of_w(w_sol, N_ch)
+
+        best = (w_sol, N_ch, Re_sol)
+        break
+
+    if best is None:
+        raise ValueError("No feasible channel width found based on current inputs or constraints")
+
+    w_sol, N_ch, Re_sol = best
+    flow["C"]["width"] = w_sol
+    flow["C"]["N_ch"] = N_ch
 
 
 def main_basic(data: dict, nozzle_build: bool = True):
@@ -92,7 +119,10 @@ def main_basic(data: dict, nozzle_build: bool = True):
     if nozzle_build:
         # Build nozzle
         x, y, a = build_nozzle(data=data)
-        cooling_geometry(flow=data)
+        width, dp = solve_width_for_dp(info=data, dp_target=data["C"]["dP"], alpha=0.9, beta=1.05, w_min=1e-4, w_max=5e-2, tol=1e-3,
+                       max_iter=80, max_attempts=5)
+        info["C"]["width"] = width
+        info["C"]["dP"] = dp
 
     else:
         x = 1
@@ -106,6 +136,8 @@ def main_basic(data: dict, nozzle_build: bool = True):
     a_min = np.min(a)
 
 
+
+
     # Isolate subsonic and supersonic with a negative sign (will be zeroed out eventually)
     ind = np.where(eps == 1.0)[0][0]
     eps[:ind] *= -1
@@ -115,6 +147,27 @@ def main_basic(data: dict, nozzle_build: bool = True):
 
     exit_vel = data["Flow"]["U"][-1]
     mdot_isen = a_min * Pc / np.sqrt(Tc) * np.sqrt(gamma/R*((2/(gamma+1))**((gamma+1)/(gamma-1))))
+
+    print("=" * 72, f"{'|':<}")
+    print(f"{'ENGINE GEOMETRY':^70} {'|':>3}")
+
+    print(frmt.format("Throat Diameter", min(y) * 2, "m", "|"))
+    print(frmt.format("Exit Velocity", exit_vel, "m/s", "|"))
+    print(frmt.format("Exit Diameter", y[-1] * 2, "m", "|"))
+    print(frmt.format("Total Force @ SL", exit_vel * mdot / 1e3, "kN", "|"))
+    print(frmt.format("Total Engine Length", x[-1], "m", "|"))
+    print(frmt.format("Mass Flow Rate", mdot_isen, "kg/s", "|"))
+    print(frmt.format("Expansion Ratio", np.max(eps), "kg/s", "|"))
+
+    print("=" * 72, f"{'|':<}")
+    print(f"{'COOLING GEOMETRY':^70} {'|':>3}")
+
+    print(frmt.format("Number of Channels", data["C"]["num_ch"], "", "|"))
+    print(frmt.format("Spacing Between Channels", data["C"]["spacing"] * 1000, "mm", "|"))
+    print(frmt.format("Channel Thickness", data["C"]["width"] * 1000, "mm", "|"))
+    print(frmt.format("Channel Height", data["C"]["height"] * 1000, "mm", "|"))
+    print(frmt.format("Channel Width", data["C"]["width"] * 1000, "mm", "|"))
+    print(frmt.format("Channel dP", data["C"]["dP"], "Pa", "|"))
 
     print("="*72,f"{'|':<}")
     print(f"{'GAS CONDITIONS':^70} {'|':>3}")
@@ -147,18 +200,6 @@ def main_basic(data: dict, nozzle_build: bool = True):
     print(frmt.format("Molar Weight", data["H"]["MW"], "g/mol", "|"))
 
 
-    print("="*72, f"{'|':<}")
-    print(f"{'ENGINE GEOMETRY':^70} {'|':>3}")
-
-    print(frmt.format("Throat Diameter", min(y)*2,"m", "|"))
-    print(frmt.format("Exit Velocity", exit_vel, "m/s", "|"))
-    print(frmt.format("Exit Diameter", y[-1]*2,"m", "|"))
-    print(frmt.format("Total Force @ SL", exit_vel * mdot/1e3, "kN", "|"))
-    print(frmt.format("Total Engine Length", x[-1], "m", "|"))
-    print(frmt.format("Mass Flow Rate", mdot_isen, "kg/s", "|"))
-    print(frmt.format("Expansion Ratio", np.max(eps), "kg/s", "|"))
-
-
     # Flow plotting
     flows = [data["Flow"]["M"], data["Flow"]["U"], data["Flow"]["T"], data["Flow"]["P"], data["Flow"]["rho"],]
     names = ["M", "U", "T", "P", "rho"]
@@ -185,13 +226,6 @@ def main_basic(data: dict, nozzle_build: bool = True):
 
     max_wall_temp_x = data_at_point(A=q["T_wi"], B=x, value=np.max(q["T_wi"]))
     max_wall_temp = np.max(q["T_wi"])
-
-    print("="*72,f"{'|':<}")
-    print(f"{'COOLING GEOMETRY':^70} {'|':>3}")
-
-    print(frmt.format("Number of channels", data["C"]["num_ch"], "","|"))
-    print(frmt.format("Spacing between channels", data["C"]["spacing"]*1000, "mm", "|"))
-    print(frmt.format("Channel thickness", data["C"]["width"]*1000, "mm", "|"))
 
 
     print("="*72,f"{'|':<}")
@@ -322,7 +356,8 @@ if __name__ == '__main__':
                 "width": None,     # Diameter if circle geometry
                 "spacing": 0.02,   # Fin thickness -- space between channels
                 "height": 0.02,     # Channel height
-                "num_ch": None,
+                "num_ch": 120,
+                "dP": 108000,
                 "h": None,
                 "Nu": None,
                 "Re": None,

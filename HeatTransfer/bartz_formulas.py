@@ -321,6 +321,15 @@ def dittus_appro(dx:float, dic:dict, dimension: int, step: int):
 
 
         # Single fin efficiency
+        if spacing <= 0 or not np.isfinite(spacing):
+            raise ValueError(f"Invalid fin thickness (spacing): {spacing}")
+
+        if k_wall <= 0 or not np.isfinite(k_wall):
+            raise ValueError(f"Invalid wall conductivity: {k_wall}")
+
+        if h_f < 0 or not np.isfinite(h_f):
+            raise ValueError(f"Invalid coolant HTC: {h_f}")
+
         m = np.sqrt(2 * h_f / k_wall / spacing)
         n_f = np.tanh(m * height) / (m * height)
 
