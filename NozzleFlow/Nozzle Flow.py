@@ -5,7 +5,6 @@ import numpy as np
 from NozzleDesign import build_nozzle
 import _extra_utils as utils
 from GasProperties import HotGas_Properties, Fluid_Properties, Material_Properties
-from GeometryDesign import solve_width_for_dp
 import matplotlib.pyplot as plt
 
 
@@ -52,64 +51,15 @@ def isentropic_nozzle_flow(eps, data: dict):
     data["Flow"]["rho"] = rho
 
 
-def cooling_geometry(flow: dict, alpha=0.8, beta=1.05, Re_target=2e4, N_max=500, N_min=10, w_min=1e-4, w_max=5e-2):
-    """Generates the cooling channel geometry based on engine properties and sizes"""
-    mdot = flow["F"]["mdot"]
-    r_throat = flow["E"]["r_throat"]
-    thickness_wall = flow["W"]["thickness"]
-    thickness_fin = flow["C"]["spacing"]
-    height_fin = flow["C"]["height"]
-    mu = flow["F"]["mu"]
+def cooling_geometry(dic: dict):
+    """Generates the allowable number of cooling channels"""
+    thickness_wall = dic["W"]["thickness"]
+    throat_radius = dic["E"]["r_throat"]
+    thickness_fin = dic["C"]["spacing"]
 
-    circum = 2 * np.pi * r_throat
-    w = thickness_fin
+    num = np.pi * (throat_radius + thickness_wall) / thickness_fin
+    dic["C"]["num_ch"] = round(num,0)
 
-    def Re_of_w(w, N_ch):
-        A_ch = alpha * w * height_fin
-        P_w = beta * (2 * height_fin + w)
-        Dh = 4 * A_ch / P_w
-        G = mdot / (N_ch * A_ch)
-        return G * Dh / mu
-
-    best = None
-
-    for N_ch in range(N_min, N_max+1):
-
-        w_upper_geom = circum / N_ch - thickness_fin
-        if w_upper_geom <= w_min:
-            continue
-
-        lo = w_min
-        hi = min(w_max, w_upper_geom)
-
-        Re_lo = Re_of_w(lo, N_ch)
-        Re_hi = Re_of_w(hi, N_ch)
-
-        if not(min(Re_lo, Re_hi) <= Re_target <= max(Re_lo, Re_hi)):
-            continue
-
-        # bisection method
-        for _ in range(60):
-            mid = 0.5*(lo + hi)
-            Re_mid = Re_of_w(mid, N_ch)
-
-            if Re_mid < Re_target:
-                lo = mid
-            else:
-                hi = mid
-
-        w_sol = 0.5*(lo + hi)
-        Re_sol = Re_of_w(w_sol, N_ch)
-
-        best = (w_sol, N_ch, Re_sol)
-        break
-
-    if best is None:
-        raise ValueError("No feasible channel width found based on current inputs or constraints")
-
-    w_sol, N_ch, Re_sol = best
-    flow["C"]["width"] = w_sol
-    flow["C"]["N_ch"] = N_ch
 
 
 def main_basic(data: dict, nozzle_build: bool = True):
@@ -119,10 +69,7 @@ def main_basic(data: dict, nozzle_build: bool = True):
     if nozzle_build:
         # Build nozzle
         x, y, a = build_nozzle(data=data)
-        width, dp = solve_width_for_dp(info=data, dp_target=data["C"]["dP"], alpha=0.9, beta=1.05, w_min=1e-4, w_max=5e-2, tol=1e-3,
-                       max_iter=80, max_attempts=5)
-        info["C"]["width"] = width
-        info["C"]["dP"] = dp
+        cooling_geometry(dic=info)
 
     else:
         x = 1
@@ -148,6 +95,41 @@ def main_basic(data: dict, nozzle_build: bool = True):
     exit_vel = data["Flow"]["U"][-1]
     mdot_isen = a_min * Pc / np.sqrt(Tc) * np.sqrt(gamma/R*((2/(gamma+1))**((gamma+1)/(gamma-1))))
 
+
+
+    # Flow plotting
+    flows = [data["Flow"]["M"], data["Flow"]["U"], data["Flow"]["T"], data["Flow"]["P"], data["Flow"]["rho"],]
+    names = ["M", "U", "T", "P", "rho"]
+    subnames = [None, None, None, None, None]
+
+    # == END == #
+
+    # == HEAT TRANSFER == #
+    dims = data["dimensions"]
+    if dims == 0:
+        q: dict = bartz_heat_transfer_const(info=data)
+    elif dims == 1:
+        HotGas_Properties(Pc=info["E"]["Pc"], fuel=info["F"]["Type"], ox=info["O"]["Type"], OF=info["E"]["OF"],
+                          dic=info)
+
+        q: dict = bartz_heat_transfer_1d(info=data)
+
+    # Heat transfer plotting
+    flows1 = [q["hg"],
+              (q["T_wall_gas"], q["T_wall_coolant"], q["T_cool"], q["T_aw"]),
+              (q["R_hg_w"], q["R_w_w"], q["R_w_c"]),
+              q["Q_dot"]]
+    names1 = ["Bartz Approx", "Wall Temps", "Wall Resistances", "Q_dot"]
+    subnames1 = [None,
+                 ("Wall-Gas", "Wall-Coolant", "Coolant", "Adiabatic Wall"),
+                 ("Wall-Gas", "Wall-Wall", "Wall-Coolant"),
+                 None]
+
+    max_wall_temp_x = data_at_point(A=q["T_wall_gas"], B=x, value=np.max(q["T_wall_gas"]))
+    max_wall_temp = np.max(q["T_wall_gas"])
+
+
+
     print("=" * 72, f"{'|':<}")
     print(f"{'ENGINE GEOMETRY':^70} {'|':>3}")
 
@@ -164,10 +146,7 @@ def main_basic(data: dict, nozzle_build: bool = True):
 
     print(frmt.format("Number of Channels", data["C"]["num_ch"], "", "|"))
     print(frmt.format("Spacing Between Channels", data["C"]["spacing"] * 1000, "mm", "|"))
-    print(frmt.format("Channel Thickness", data["C"]["width"] * 1000, "mm", "|"))
     print(frmt.format("Channel Height", data["C"]["height"] * 1000, "mm", "|"))
-    print(frmt.format("Channel Width", data["C"]["width"] * 1000, "mm", "|"))
-    print(frmt.format("Channel dP", data["C"]["dP"], "Pa", "|"))
 
     print("="*72,f"{'|':<}")
     print(f"{'GAS CONDITIONS':^70} {'|':>3}")
@@ -200,48 +179,23 @@ def main_basic(data: dict, nozzle_build: bool = True):
     print(frmt.format("Molar Weight", data["H"]["MW"], "g/mol", "|"))
 
 
-    # Flow plotting
-    flows = [data["Flow"]["M"], data["Flow"]["U"], data["Flow"]["T"], data["Flow"]["P"], data["Flow"]["rho"],]
-    names = ["M", "U", "T", "P", "rho"]
-    subnames = [None, None, None, None, None]
-
-    # == END == #
-
-    # == HEAT TRANSFER == #
-    dims = data["dimensions"]
-    if dims == 0:
-        q: dict = bartz_heat_transfer_const(info=data)
-    elif dims == 1:
-        HotGas_Properties(Pc=info["E"]["Pc"], fuel=info["F"]["Type"], ox=info["O"]["Type"], OF=info["E"]["OF"],
-                          dic=info)
-
-        q: dict = bartz_heat_transfer_1d(info=data)
-
-    # Heat transfer plotting
-    # flows1 = [q["hg"], (q["T_wi"], q["T_wo"]), q["qdot"]]
-    flows1 = [q["T_cool"], q["hg"]]
-    names1 = ["Coolant Temperature", "h_hg"]
-    # subnames1 = [None, ["Inner Temps", "Outer Temps"], None]
-    subnames1 = [None, None]
-
-    max_wall_temp_x = data_at_point(A=q["T_wi"], B=x, value=np.max(q["T_wi"]))
-    max_wall_temp = np.max(q["T_wi"])
-
-
     print("="*72,f"{'|':<}")
     print(f"{'HEAT DATA':^70} {'|':>3}")
 
     print(frmt.format("Maximum Wall Temp", max_wall_temp, "K", "|"))
     print(frmt.format("at ... from throat", max_wall_temp_x*1000, "mm", "|"))
+    print(frmt.format("Maximum Coolant Temp", np.mean(q["T_cool"]), "K", "|"))
     print(frmt.format("Average Heat Transfer Coefficient (hot gas)", np.mean(q["hg"]), "W/m^2-K", "|"))
     print(frmt.format("Maximum Heat Transfer Coefficient (hot gas)", max(q["hg"]), "W/m^2-K", "|"))
-    print(frmt.format("Average Heat Flux (qdot)", np.mean(q["Q_dot"]/1e6), "W/m^2-K", "|"))
-    print(frmt.format("Maximum Heat Flux (qdot)", max(q["Q_dot"]/1e6), "W/m^2-K", "|"))
-    print(frmt.format("Maximum Coolant Temp", np.mean(q["T_cool"]), "K", "|"))
+    print(frmt.format("Average Heat Rate (Qdot)", np.mean(q["Q_dot"]/1e6), "W/m^2-K", "|"))
+    print(frmt.format("Maximum Heat rate (Qdot)", max(q["Q_dot"]/1e6), "W/m^2-K", "|"))
+
     melting_point = data["W"]["solidus"]
     if max_wall_temp > melting_point:
         excess = melting_point - max_wall_temp
         print(f"WARNING : Maximum wall temp exceeds the melting point of {data["W"]["Type"]} by {abs(excess):.2f} K")
+        percent = abs(melting_point - max_wall_temp) / max_wall_temp * 100
+        print(f"WARNING : This is a {percent:.2f}% error")
 
     # == END == #
 
@@ -278,26 +232,6 @@ if __name__ == '__main__':
 
     # == ENGINE INFO == #
 
-    # info = {"CEA": True,
-    #         "Pc": 2.013e6,       # Chamber Pressure [Pa]
-    #         "Pe": 101325,    # Ambient Pressure (exit) [Pa]
-    #         "Tc": 3500,         # Chamber temp [K]
-    #         "mdot": 1.89,       # Mass Flow Rate [kg/s]
-    #         "gamma": 1.4,      # Hot gas specific heat ratio
-    #         "R": 287,           # Hot gas ideal gas constant
-    #         "mu": 8.617e-4,     # Hot gas dynamic viscosity
-    #         "k": 16.27,        # Wall thermal conductivity
-    #         "size": 1.0,        # Engine proportion (% of rao nozzle)
-    #         "plots": "no",       # Choice of engine plotting (no, 2D, 3D)
-    #         "Fuel": "RP-1",
-    #         "Ox": "LOX",
-    #         "OF": 1.8,
-    #         "eps": None,
-    #         "cp_g": None,
-    #         "cstar": None,
-    #         "MW": None
-    #         }
-    #
     info = {"CEA": True,
             "plots": "no",
             "dimensions": 1,    # Complexity of heat transfer
@@ -348,16 +282,14 @@ if __name__ == '__main__':
                 # "Type": "SS 316L",
                 # "Type": "Tungsten",
                 "Type": "Copper Chromium",
-                "thickness": 0.02
+                "thickness": 0.01
             },
             "C": {
                 "Type": "Square",
-                "thickness": 0.02,  # Wall thickness
-                "width": None,     # Diameter if circle geometry
-                "spacing": 0.02,   # Fin thickness -- space between channels
-                "height": 0.02,     # Channel height
-                "num_ch": 120,
-                "dP": 108000,
+                "thickness": 0.005,  # Wall thickness
+                "spacing": 0.005,   # Fin thickness -- space between channels
+                "height": 0.005,     # Channel height
+                "num_ch": None,
                 "h": None,
                 "Nu": None,
                 "Re": None,

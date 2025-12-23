@@ -83,7 +83,7 @@ def HotGas_Properties(Pc, fuel, ox, OF, dic, eps=None):
 
 
 
-def Fluid_Properties(dic: dict):
+def Fluid_Properties(dic: dict, coolant_only=False):
     """Currently assumes ideal conditions and ideal gas/fluids"""
     mdot = dic["E"]["mdot"]
     of = dic["E"]["OF"]
@@ -97,9 +97,12 @@ def Fluid_Properties(dic: dict):
         "Kerosene": "RP-1",
         "Kero": "RP-1",
     }
+    if coolant_only:
+        fluids = ["F"]
+    else:
+        fluids = ["F", "O"]
 
-
-    for i in ["F", "O"]:
+    for i in fluids:
         fluid = dic[i]["Type"]
         fluid = FLUID_MAP.get(fluid, fluid)
 
@@ -129,7 +132,7 @@ def Fluid_Properties(dic: dict):
                 )
 
 
-        else:
+        elif coolant_only == False:
 
             rho = PropsSI("D", "T", T_f, "P", P_f, fluid)
             mu = PropsSI("V", "T", T_f, "P", P_f, fluid)
