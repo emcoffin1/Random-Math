@@ -157,7 +157,39 @@ def area_conversion(y):
     return a
 
 
-def build_nozzle(data: dict):
+def chamber_contraction(x, y, info: dict, Lc=0.05):
+    y_conv = np.min(y)
+    Rt = y_conv
+    CR = info["E"]["CR"]
+    r_c = Rt * np.sqrt(CR)
+
+    f = info["F"]["Type"]
+    o = info["O"]["Type"]
+    if f == "RP-1" and o == "LOX":
+        Lstar = 1.1
+
+    else:
+        Lstar = 1.0
+        print("WARNING : Current propellant choices not available, defaulting to L* = ", Lstar)
+
+    info["E"]["Lstar"] = Lstar
+
+    # CR is the ratio of chamber area to throat area
+    # Chamber length is essentially L* Ac / At
+    Lch = Lstar / CR
+    info["E"]["Lc"] = Lch
+    x0 = x[0]
+
+    x_ch = np.linspace(x0 - Lch, x0-Lc, 50)
+    y_ch = np.full_like(x_ch, r_c)
+
+    x_con = np.linspace(x0-Lc, x0, 50)
+    y_con = Rt + 0.5*(r_c - Rt)*(1 + np.cos(np.pi*(x_con - (x0-Lc))/Lc))
+
+    return x_ch, y_ch, x_con, y_con
+
+
+def build_nozzle(data: dict, chamber=True):
     """
     Build the full nozzle and optionally plot
     """
@@ -183,17 +215,33 @@ def build_nozzle(data: dict):
     points = point_selection(Rt, eps, n, e, bell_percent=size)
 
     xq, yq = quadratic_curve(points)
-    xen, yen = entry_section(Rt)
     xe, ye = exit_section(Rt, n)
 
-    # Build out full line
-    x = np.concatenate((xen[::-1], xe, xq))
-    y = np.concatenate((yen[::-1], ye, yq))
+    if not chamber:
+        xen, yen = entry_section(Rt)
+        # Build out full line
+        x = np.concatenate((xen[::-1], xe, xq))
+        y = np.concatenate((yen[::-1], ye, yq))
 
-    sort_idx = np.argsort(x)
-    x, y = np.array(x)[sort_idx], np.array(y)[sort_idx]
+    else:
+
+        x = np.concatenate((xe, xq))
+        y = np.concatenate((ye, yq))
+
+        x_ch, y_ch, x_con, y_con = chamber_contraction(x=xe, y=ye, info=data)
+
+        x = np.concatenate((x_ch, x_con[:-1], x))
+        y = np.concatenate((y_ch, y_con[:-1], y))
+
+
+    # sort_idx = np.argsort(x)
+    # x, y = np.array(x)[sort_idx], np.array(y)[sort_idx]
 
     x, y = convert_to_func(x=x, y=y, save=False)
+
+    # it = np.argmin(y)
+    # assert np.all(np.diff(y[:it]) < 0)  # monotonic contraction
+    # assert np.all(np.diff(y[it:]) > 0)  # monotonic expansion
 
     a = area_conversion(y)
     r_throat = np.min(y)
@@ -204,6 +252,9 @@ def build_nozzle(data: dict):
     data["E"]["y"] = y
     data["E"]["a"] = a
     data["E"]["r_throat"] = r_throat
+
+    if np.any(data["E"]["aspect_ratio"] <= 0):
+        raise ValueError("There is a negative value in the aspect ratio. FOUND IN DESIGN")
 
 
     # Recompute the values

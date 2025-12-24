@@ -28,6 +28,7 @@ def HotGas_Properties(Pc, fuel, ox, OF, dic, eps=None):
     cstar = cea.get_Cstar(Pc=Pc_psi, MR=OF) * 0.3048
     R = 8314.462618 / mw
 
+
     mu = [
         cea.get_Chamber_Transport(Pc=Pc_psi, MR=OF)[1] / 0.671968975,
         cea.get_Throat_Transport(Pc=Pc_psi, MR=OF)[1] / 0.671968975,
@@ -109,27 +110,34 @@ def Fluid_Properties(dic: dict, coolant_only=False):
         P_f = dic[i]["P"] if dic[i]["P"] is not None else dic["E"]["Pc"] + 689476
         T_f = dic[i]["T"] if dic[i]["T"] is not None else 298
 
-        if fluid == "RP-1":
-            A = -7.812
-            B = 5.53e3
-            C = -1.503e6
-            D = 1.801e8
-            invT = 1 / T_f
-            ln_nu = A + B*invT + C*(invT**2) + D*(invT**3)
-            nu = 10**ln_nu * 1e-6                               # m^2/s
-            rho = 810.0 - 0.75 * (T_f - 288.15)                 # kg/m^3
-            mu = rho * nu                                       # Pa-s
+        if T_f > 510:
+            T_f = 510
 
-            cp = 2000
-            k = 0.13
+        if fluid == "RP-1":
+            """https://rocketprops.readthedocs.io/en/latest/rp1_prop.html"""
+            rho = 810.0 - 0.75 * (T_f - 288.15)                 # kg/m^3
+            a0 = 9.06668
+            a1 = -4.45988
+            a2 = 164.814
+            T_R = 1.8 * T_f
+            mu = 10**a0 * T_R**a1 * 10**(a2/T_R)
+
+            cp = (1.88192787e-05)*T_f**3 - (2.30240993e-02)*T_f**2 + (1.32103092e+01)*T_f - 3.12233222e+02
+            k_btu = (-3.417e-11)*T_R**3 + (1.147e-7)*T_R**2 - (1.512e-4)*T_R + 1.183e-1
+            k = 1.730735 * k_btu
             Pr = cp * mu / k
 
             gamma = 1.24 # (assumed)
 
             if not (1e-4 < mu < 5e-3):
-                raise ValueError(
-                    f"Unphysical RP-1 Viscosity: mu = {mu:.3f} [Pa-s] at T = {T_f:.2f} [K]"
-                )
+
+                print(f"mu exceeds realistic value, clamping...")
+                T_R = 500*1.8
+                mu = 10**a0 * T_R**a1 * 10**(a2/T_R)
+
+
+            dic[i]["T_max"] = 510
+
 
 
         elif coolant_only == False:
@@ -178,7 +186,7 @@ def Material_Properties(dic: dict):
         rho = 8190          # kg/m^3
         yield_strength = 1100e6  # Pa
         E = 193e9           # Pa
-        k = 11.4            # W/m-K
+        k = 20            # W/m-K
 
     elif material == "Tungsten":
         cp = 134  # J/kg-K
@@ -216,3 +224,144 @@ def Material_Properties(dic: dict):
     dic["W"]["k"] = k
     dic["W"]["E"] = E
 
+
+if __name__ == "__main__":
+
+    info = {"CEA": True,
+            "plots": "no",
+            "dimensions": 1,    # Complexity of heat transfer
+            "E": {
+                "Pc": 3e6,  # Chamber Pressure [Pa]
+                "Pe": 60000,  # Ambient Pressure (exit) [Pa]
+                "Tc": 3500,  # Chamber temp [K]
+                "mdot": 0.73,  # Mass Flow Rate [kg/s]
+                "OF": 2.25,
+                "size": 1.0,
+                "CR": 3,
+            },
+            "H": {
+                "mu": None,
+                "k": None,
+                "rho": None,
+                "gamma": None,
+                "cp": None,
+                "cstar": None,
+                "MW": None,
+            },
+            "F": {
+                "Type": "RP-1",
+                "T": 300,
+                "P": None,
+                "mu": None,
+                "k": None,
+                "rho": None,
+                "gamma": None,
+                "cp": None,
+                "cstar": None,
+                "MW": None,
+                "mdot": None,
+            },
+            "O": {
+                "Type": "LOX",
+                "T": 98,
+                "P": None,
+                "mu": None,
+                "k": None,
+                "rho": None,
+                "gamma": None,
+                "cp": None,
+                "cstar": None,
+                "MW": None,
+                "mdot": None,
+            },
+            "W": {
+                # "Type": "SS 316L",
+                # "Type": "Tungsten",
+                "Type": "Copper Chromium",
+                "thickness": 0.02
+            },
+            "C": {
+                "Type": "Square",
+                "spacing": 0.01,   # Fin thickness -- space between channels
+                "height": 0.01,     # Channel height
+                "num_ch": None,
+                "h": None,
+                "Nu": None,
+                "Re": None,
+            },
+            "Flow": {
+                "x": None,
+                "y": None,
+                "a": None,
+                "eps": None
+            },
+
+
+            }
+    #
+    # Fluid_Properties(dic=info, coolant_only=True)
+    # print(info["F"]["mu"])
+
+    import numpy as np
+    import matplotlib.pyplot as plt
+
+    # Temperature sweep for RP-1 coolant
+    T_vals = np.linspace(280, 510, 200)  # K (liquid RP-1 useful range)
+
+    mu_arr = []
+    rho_arr = []
+    cp_arr = []
+    k_arr = []
+    Pr_arr = []
+
+    for T in T_vals:
+        info["F"]["T"] = T
+        info["F"]["P"] = 3e6  # keep pressure fixed just for property trends
+
+        Fluid_Properties(dic=info, coolant_only=True)
+
+        mu_arr.append(info["F"]["mu"])
+        rho_arr.append(info["F"]["rho"])
+        cp_arr.append(info["F"]["cp"])
+        k_arr.append(info["F"]["k"])
+        Pr_arr.append(info["F"]["Pr"])
+
+    mu_arr = np.array(mu_arr)
+    rho_arr = np.array(rho_arr)
+    cp_arr = np.array(cp_arr)
+    k_arr = np.array(k_arr)
+    Pr_arr = np.array(Pr_arr)
+
+    fig, axs = plt.subplots(3, 2, figsize=(10, 10))
+    axs = axs.flatten()
+
+    axs[0].plot(T_vals, mu_arr)
+    axs[0].set_title("RP-1 Viscosity μ [Pa·s]")
+    axs[0].set_xlabel("T [K]")
+    axs[0].set_ylabel("μ")
+
+    axs[1].plot(T_vals, rho_arr)
+    axs[1].set_title("RP-1 Density ρ [kg/m³]")
+    axs[1].set_xlabel("T [K]")
+    axs[1].set_ylabel("ρ")
+
+    axs[2].plot(T_vals, cp_arr)
+    axs[2].set_title("RP-1 cp [J/kg·K]")
+    axs[2].set_xlabel("T [K]")
+    axs[2].set_ylabel("cp")
+
+    axs[3].plot(T_vals, k_arr)
+    axs[3].set_title("RP-1 Thermal Conductivity k [W/m·K]")
+    axs[3].set_xlabel("T [K]")
+    axs[3].set_ylabel("k")
+
+    axs[4].plot(T_vals, Pr_arr)
+    axs[4].set_title("RP-1 Prandtl Number")
+    axs[4].set_xlabel("T [K]")
+    axs[4].set_ylabel("Pr")
+
+    for ax in axs:
+        ax.grid(True)
+
+    plt.tight_layout()
+    plt.show()

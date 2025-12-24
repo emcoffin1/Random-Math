@@ -17,7 +17,7 @@ def bartz_heat_transfer_const(info: dict, w=0.7):
                                                 info["H"]["k"],
                                                 info["E"]["Tc"], info["E"]["mdot"], info["H"]["mu"][1],
                                                 info["H"]["cp"][1], info["H"]["k"][1], info["H"]["cstar"])
-    h_f, Nu, Re = dittus_appro(dic=info, dimension=0, iteration=0)
+    h_f, Nu, Re = dittus_appro(dic=info, dimension=0, step=0, dx=0)
 
     info["F"]["h"] = h_f
     info["F"]["Nu"] = Nu
@@ -74,7 +74,7 @@ def bartz_heat_transfer_const(info: dict, w=0.7):
     return dic
 
 
-def bartz_heat_transfer_1d(info: dict, max_iteration=10000, tol=1e-5):
+def bartz_heat_transfer_1d(info: dict, max_iteration=100, tol=1e-13):
 
     """Engine and Hot Gas Information"""
     # =========================== #
@@ -112,13 +112,17 @@ def bartz_heat_transfer_1d(info: dict, max_iteration=10000, tol=1e-5):
     """Storage"""
     Taw: np.ndarray             = np.zeros(N, dtype=float)
     h_hg: np.ndarray            = np.zeros(N, dtype=float)
+    h_wc: np.ndarray            = np.zeros(N, dtype=float)
     T_wall_coolant: np.ndarray  = np.zeros(N, dtype=float)
     T_wall_gas: np.ndarray      = np.zeros(N, dtype=float)
-    T_c: np.ndarray             = np.zeros(N, dtype=float)
+    T_c_out: np.ndarray         = np.zeros(N, dtype=float)
     Q_dot: np.ndarray           = np.zeros(N, dtype=float)
     R_hg_w_arr: np.ndarray      = np.zeros(N, dtype=float)
     R_w_c_arr: np.ndarray       = np.zeros(N, dtype=float)
     R_w_w_arr: np.ndarray       = np.zeros(N, dtype=float)
+    Re_arr: np.ndarray          = np.zeros(N, dtype=float)
+    v_arr: np.ndarray           = np.zeros(N, dtype=float)
+    Dh_arr: np.ndarray          = np.zeros(N, dtype=float)
 
     """
     Initial Conditions
@@ -131,80 +135,85 @@ def bartz_heat_transfer_1d(info: dict, max_iteration=10000, tol=1e-5):
 
     T_coolant                   = float(T_f)
 
+    converge_count = 0
+
     """March along x"""
     # March through all slices, i
     # Starts from -1 and works backwards (-1, -2, -3, ...)
     # This is done as fuel (coolant) enters the engine from the nozzle exit side
     for i in range(N-1, -1, -1):
 
-        progress = (N - 1 - i) / (N - 1) * 100
+        progress        = (N - 1 - i) / (N - 1) * 100
         print(f"\rCooling solver progress: {progress:5.1f}%", end="", flush=True)
 
         # Slice Radius
-        y_i = float(y[i])
+        y_i             = float(y[i])
         # Slice thickness
-        dx_i = float(dx_i_arr[i])
+        dx_i            = float(dx_i_arr[i])
 
         if dx_i <= 0:
             raise ValueError(f"dx_i = {dx_i} must be positive!")
 
-        T_slice_in = float(T_coolant)
-        T_guess = T_slice_in
+        T_slice_in      = float(T_coolant)
+        T_guess         = T_slice_in
 
         # Last computed values for use after convergence
-        Q_i = np.nan
-        R_w_c = np.nan
-        R_w_w = np.nan
+        Q_i             = np.nan
+        R_w_c           = np.nan
+        R_w_w           = np.nan
+
+        # ==================================== #
+        # == COOLANT TEMPERATURE ITERATIONS == #
+        # ==================================== #
 
         # Iterate a max of j times
         for j in range(max_iteration):
 
-            info["C"]["T"][i] = float(T_guess)
+            info["F"]["T"]   = float(T_guess)
 
-            h_coolant, Nu, Re, A_fs, n_fs = dittus_appro(dx=dx_i, dic=info, dimension=1, step=i)
+            h_coolant, Nu, Re, A_fs, n_fs, v, Dh, n_f = dittus_appro(dx=dx_i, dic=info, dimension=1, step=i)
 
-            info["C"]["h"][i] = h_coolant
-            info["C"]["Nu"][i] = Nu
-            info["C"]["Re"][i] = Re
+            info["C"]["h"][i]   = h_coolant
+            info["C"]["Nu"][i]  = Nu
+            info["C"]["Re"][i]  = Re
 
             # Hot Gas properties
-            Pr = (mu[i] * cp[i]) / k[i]
-            r_rec = Pr ** (1/3)
+            Pr                  = (mu[i] * cp[i]) / k[i]
+            r_rec               = Pr ** (1/3)
 
             # Adiabatic wall temperature
-            Taw_i = Tc * (1 + r_rec * (gamma[i]-1)/2 * M[i]**2) / (1 + (gamma[i]-1)/2 * M[i]**2)
-            Taw[i] = Taw_i
+            Taw_i               = Tc * (1 + r_rec * (gamma[i]-1)/2 * M[i]**2) / (1 + (gamma[i]-1)/2 * M[i]**2)
+            Taw[i]              = Taw_i
 
             # Bartz convection coefficient approximation
-            h_hg[i] = bartz_approx(Taw=Taw[i], dic=info, dimension=1, step=i, iteration=j)
+            h_hg[i]             = bartz_approx(Taw=Taw[i], dic=info, dimension=1, step=i, iteration=j)
 
             # Thermal resistance
             # Hot gas side
-            R_hg_w = 1 / (2 * np.pi * y_i * dx_i * h_hg[i])
+            R_hg_w              = 1 / (2 * np.pi * y_i * dx_i * h_hg[i])
 
             # Wall conduction
-            R_w_w = np.log((y_i+t_w) / y_i) / (2 * np.pi * dx_i * k_w)
+            R_w_w               = np.log((y_i+t_w) / y_i) / (2 * np.pi * dx_i * k_w)
 
             # Wall to coolant
-            R_w_c = 1 / (n_fs * A_fs * h_coolant)
+            R_w_c               = 1 / (n_fs * A_fs * h_coolant)
 
             # Total resistance network
-            R_total = R_hg_w + R_w_w + R_w_c
+            R_total             = R_hg_w + R_w_w + R_w_c
             if R_total <= 0 or not np.isfinite(R_total):
                 raise ValueError(f"Invalid total resistance at i={i}, j={j}: R_total={R_total}")
 
             # Heat flux to coolant
-            Q_i = (Taw_i - T_slice_in) / R_total
-
+            Q_i                   = (Taw_i - T_guess) / R_total
 
             # Temperature adjustment
-            T_coolant_out = T_slice_in + Q_i / (mdot_f * cp_f)
+            T_coolant_out       = T_slice_in + Q_i / (mdot_f * cp_f)
 
-            T_coolant_new = (T_slice_in + T_coolant_out) / 2
+            T_coolant_avg       = (T_slice_in + T_coolant_out) / 2
 
-            residual = abs(T_coolant_new - T_guess)
+            residual            = abs(T_coolant_avg - T_guess)
             if residual < tol:
-                T_guess = T_coolant_new
+                converge_count += 1
                 break
 
             # if not (Taw[i] > T_wall_gas[i] > T_wall_coolant[i] > T_c[i]):
@@ -216,24 +225,29 @@ def bartz_heat_transfer_1d(info: dict, max_iteration=10000, tol=1e-5):
             #         f"T_coolant     = {T_c[i]:.2f} K\n"
             #         f"Check: Taw > Twg > Twc > Tc\n"
             #     )
-            T_guess = T_coolant_new
+            T_guess             = T_coolant_avg
 
-        else:
-            # Didnt converge
-            raise RuntimeError(f"Coolant iteration failed to converge at i={i}. Last T_guess={T_guess:.4f}, Q_i={Q_i:.4f}")
 
         # Coolant and heat transfer slice results
-        T_coolant = float(T_guess)
-        T_c[i] = T_coolant
+        T_coolant = float(T_coolant_out)
+        T_c_out[i] = T_coolant_out
         Q_dot[i] = float(Q_i)
+
+        # Random fluid values
+        h_wc[i] = h_coolant
+        Re_arr[i] = Re
+        v_arr[i] = v
+        Dh_arr[i] = Dh
 
         # Resistance Results
         R_hg_w_arr[i] = R_hg_w
         R_w_w_arr[i] = R_w_w
         R_w_c_arr[i] = R_w_c
 
+
+
         # Wall temperature for slice
-        T_wall_coolant[i] = T_coolant + Q_i * R_w_c
+        T_wall_coolant[i] = T_coolant_out + Q_i * R_w_c
         T_wall_gas[i] = T_wall_coolant[i] + Q_i * R_w_w
 
         # Optional physical ordering check
@@ -243,18 +257,28 @@ def bartz_heat_transfer_1d(info: dict, max_iteration=10000, tol=1e-5):
         #         f"Taw={Taw[i]:.2f}, Twg={T_wall_gas[i]:.2f}, Twc={T_wall_coolant[i]:.2f}, Tc={T_c[i]:.2f}"
         #     )
 
-    dic = {"hg": h_hg,
+    Q_total = np.sum(Q_dot)
+    dT_bulk = T_c_out[0] - T_c_out[-1]
+    Q_from_bulk = mdot_f * cp_f * dT_bulk
+    print(f"\nConservations: {((Q_total - Q_from_bulk)/Q_from_bulk*100):.2f} %")
+
+    dic = {"h_hg": h_hg,
+           "h_wc": h_wc,
            "Q_dot": Q_dot,
            "T_aw": Taw,
-           "T_cool": T_c,
+           "T_cool": T_c_out,
            "T_wall_coolant": T_wall_coolant,
            "T_wall_gas": T_wall_gas,
            "R_hg_w": R_hg_w_arr,
            "R_w_w": R_w_w_arr,
-           "R_w_c": R_w_c_arr,}
+           "R_w_c": R_w_c_arr,
+           "v": v_arr,
+           "Re": Re_arr,
+           "Dh": Dh_arr,}
 
 
     print("\nCooling solution complete.")
+    print(f"{(converge_count/N*100):.2f}% of slices converged")
     return dic
 
 def bartz_approx(Taw, dic:dict, dimension: int, step: int, iteration: int):
@@ -268,10 +292,12 @@ def bartz_approx(Taw, dic:dict, dimension: int, step: int, iteration: int):
     :return: hot gas convection coefficient
     """
 
-    Dt = np.min(dic["E"]["y"]) * 2
+    Dt = dic["E"]["r_throat"] * 2
     Pc = dic["E"]["Pc"]
     cstar = dic["H"]["cstar"]
     eps = dic["E"]["aspect_ratio"]
+    if np.any(eps <= 0):
+        raise ValueError(f"There is a negative value in the aspect ratio. {eps}")
     # eps = dic["Flow"]["eps"]
     Tc = dic["E"]["Tc"]
 
@@ -286,7 +312,7 @@ def bartz_approx(Taw, dic:dict, dimension: int, step: int, iteration: int):
         Pr = dic["H"]["Pr"][1]
 
         h_hg = (0.026 / Dt**0.2) * (mu**0.2 * cp / Pr**0.6) \
-             * (Pc / cstar)**0.8 * eps**-0.9
+             * (Pc / cstar)**0.8 * (1/eps)**0.9
 
         sigma1 = (0.5 * (Taw / Tc) * (1 + (gamma - 1)/2 * M**2) + 0.5)**-0.68
         sigma2 = (1 + (gamma - 1)/2 * M**2)**-0.12
@@ -299,20 +325,38 @@ def bartz_approx(Taw, dic:dict, dimension: int, step: int, iteration: int):
         cp = dic["H"]["cp"][i]
         gamma = dic["H"]["gamma"][i]
         Pr = dic["H"]["Pr"][1]
+        k = dic["H"]["k"][i]
+        T = dic["Flow"]["T"][i]
+        P = dic["Flow"]["P"][i]
+        R = dic["H"]["R"]
         Mi = M[i]
+        D = dic["E"]["y"][i] * 2
+
+        a = np.sqrt(gamma * R * T)
+        v = Mi * a
+        rho = P / (R * T)
+        Re = rho * v * D / mu
+
+        # h_hg = (0.026 / Dt**0.2) * (mu**0.2 * cp / Pr**0.6) \
+        #      * (Pc / cstar)**0.8 * np.abs(eps[i])**-0.9
+
+        sigma1 = (0.5 * (Taw / Tc) * (1 + (gamma - 1) / 2 * Mi ** 2) + 0.5) ** -0.68
+        sigma2 = (1 + (gamma - 1) / 2 * Mi ** 2) ** -0.12
+        sigma = sigma1 * sigma2
+
+        # h_hg = h_hg * sigma1 * sigma2
+        Nu = 0.026 * (Re**0.8) * (Pr**0.4) * (eps[i]**-0.9) * sigma
+        h = Nu * k / D
 
 
-        h_hg = (0.026 / Dt**0.2) * (mu**0.2 * cp / Pr**0.6) \
-             * (Pc / cstar)**0.8 * np.abs(eps[i])**-0.9
+        # print(Nu, Pr, eps[i])
+        # if eps[i] == 1:
+        #     print("===",dic["E"]["mdot"] / dic["E"]["a"][i])
+        #     print("===" ,mu)
+        #     print("===", D)
 
-        if iteration != 0:
-            # Add correction if iteration is not first pass
-            sigma1 = (0.5 * (Taw / Tc) * (1 + (gamma - 1) / 2 * Mi ** 2) + 0.5) ** -0.68
-            sigma2 = (1 + (gamma - 1) / 2 * Mi ** 2) ** -0.12
 
-            h_hg = h_hg * sigma1 * sigma2
-
-        return h_hg
+        return h
 
 
 
@@ -368,25 +412,38 @@ def dittus_appro(dx:float, dic:dict, dimension: int, step: int):
 
         # Calculate reynolds using mass flux to avoid using velocity
         if mdot is not None and Ah is not None:
-            G = mdot / (Ah * num_ch)
-            Re = G * Dh / mu
+            # G = mdot / (Ah * num_ch)
+            # Re = G * Dh / mu
+            v = mdot/ num_ch / rho / Ah
+            Re = rho * v * Dh / mu
 
         else:
             raise ValueError("Need fuel mass flow rate and channel area (flow area) "
                              "to determine convective heat transfer coefficient")
 
-        # Calculate Nu based on flow characteristics
-        if Re < 2300:
-            # Fully-developed laminar, constant wall heat flux
-            Nu = 4.36
+        # # Calculate Nu based on flow characteristics
+        # if Re <= 2300:
+        #     # Fully-developed laminar, constant wall heat flux
+        #     Nu = 4.36
+        #
+        # else:
+        #     # Gnielinksi (for smooth duct)
+        #     f = (0.79 * np.log(Re) - 1.64) ** -2
+        #     Nu = ((f / 8.0) * (Re - 1000) * Pr) / (1.0 + 12.7 * np.sqrt(f / 8) * (Pr ** (2 / 3) - 1.0))
 
-        else:
-            # Gnielinksi (for smooth duct)
-            f = (0.79 * np.log(Re) - 1.64) ** -2
-            Nu = ((f / 8.0) * (Re - 1000) * Pr) / (1.0 + 12.7 * np.sqrt(f / 8) * (Pr ** (2 / 3) - 1.0))
+        Nu_lam = 4.36
 
-        # h_f = Nu * k / Dh
-        h_f = 0.023*Re**0.8*Pr**0.4*(k / Dh)
+        # Turbulent Gnielinksi
+        f = (0.79*np.log(Re) - 1.64)**-2
+        Nu_turb = ((f / 8.0) * (Re - 1000) * Pr) / (1.0 + 12.7 * np.sqrt(f / 8) * (Pr ** (2 / 3) - 1.0))
+
+        Re1, Re2 = 2000, 5000
+        w = (Re - Re1) / (Re2 - Re1)
+        w = max(0.0, min(1.0, w))
+        Nu = (1-w)* Nu_lam + w*Nu_turb
+
+        h_f = Nu * k / Dh
+        # h_f = 0.023*Re**0.8*Pr**0.4*(k / Dh)
 
 
         # Single fin efficiency
@@ -404,10 +461,7 @@ def dittus_appro(dx:float, dic:dict, dimension: int, step: int):
 
         # Finset efficiency
         n_fs = 1 - (num_ch * A_f / A_fs) * (1 - n_f)
-        # dic["C"]["Afs"] = A_fs
-        # dic["C"]["n_fs"] = n_fs
-
-        return h_f, Nu, Re, A_fs, n_fs
+        return h_f, Nu, Re, A_fs, n_fs, v, Dh, h_f
 
 
     elif type == "Circle":

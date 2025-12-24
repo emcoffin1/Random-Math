@@ -175,7 +175,7 @@ def convert_to_func(x, y, save, filename="nozzle_curve.txt"):
 
     # Smooth with cubic spline
     spline = CubicSpline(x, y)
-    x_dense = np.linspace(x.min(), x.max(), 500)
+    x_dense = np.linspace(x.min(), x.max(), 1000)
     y_dense = spline(x_dense)
 
     # Z = 0 for 2D profile
