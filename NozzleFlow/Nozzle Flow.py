@@ -62,6 +62,17 @@ def engine_analysis(flow: dict):
     Cstar_actual = Pc * A_throat / mdot
     Cstar_diff = flow["H"]["cstar"] - Cstar_actual
 
+    P = flow["Flow"]["P"][0]
+    T = flow["Flow"]["T"][0]
+    R = flow["Flow"]["R"]
+    rho = P / (R * T)
+    vu = 1 / rho
+
+    Lc = flow["E"]["Lc"]
+    Ac = np.pi * flow["E"]["y"][0]**2
+    Vc = Lc * Ac
+    t_residence = Vc / (mdot * vu)
+
 
 def cooling_geometry(dic: dict):
     """Generates the allowable number of cooling channels"""
