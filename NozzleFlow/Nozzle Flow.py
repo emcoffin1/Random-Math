@@ -86,7 +86,7 @@ def cooling_geometry(dic: dict):
     dic["C"]["num_ch"] = N
 
 
-def main_basic(data: dict, nozzle_build: bool = True):
+def main_basic(data: dict, nozzle_build: bool = True, display=True):
     frmt                = "{:<50} {:<10.3f} {:<10} {:<}"
     frmt2               = "{:<50} {:<10} {:<10} {:<}"
 
@@ -140,145 +140,151 @@ def main_basic(data: dict, nozzle_build: bool = True):
 
     else:
         analyze         = False
+        q = dict()
 
-    if analyze:
-        # Heat transfer plotting
-        flows1          = [(q["h_hg"], q["h_wc"]),
-                           (q["T_wall_gas"], q["T_wall_coolant"], q["T_aw"]),
-                           (q["R_hg_w"], q["R_w_w"], q["R_w_c"]),
-                           q["Q_dot"],
-                           q["Re"],
-                           q["Dh"]
-                           ]
-
-        names1          = ["Heat Transfer Coefficients",
-                           "Wall Temps",
-                           "Wall Resistances",
-                           "Q_dot",
-                           "Reynolds",
-                           "Dh"
-                           ]
-
-        subnames1       = [("Gas-Wall", "Wall-Coolant"),
-                           ("Wall-Gas", "Wall-Coolant", "Adiabatic Wall"),
-                           ("Wall-Gas", "Wall-Wall", "Wall-Coolant"),
-                           None,
-                           None,
-                           None
-                           ]
-
-        max_wall_temp_x = data_at_point(A=q["T_wall_gas"], B=x, value=np.max(q["T_wall_gas"]))
-        max_wall_temp   = np.max(q["T_wall_gas"])
-
-    Lc = data["E"]["Lc"]
-    if Lc is None:
-        Lc = 0
-
-
-    print("=" * 72, f"{'|':<}")
-    print(f"{'ENGINE GEOMETRY':^70} {'|':>3}")
-
-    print(frmt.format("Throat Diameter", min(y) * 2*100, "cm", "|"))
-    print(frmt.format("Exit Velocity", exit_vel, "m/s", "|"))
-    print(frmt.format("Exit Diameter", y[-1] * 2, "m", "|"))
-    print(frmt.format("Total Force @ SL", exit_vel * mdot / 1e3, "kN", "|"))
-    print(frmt.format("Total Engine Length", x[-1], "m", "|"))
-    print(frmt.format("Mass Flow Rate", mdot_isen, "kg/s", "|"))
-    print(frmt.format("Expansion Ratio", np.max(eps), "kg/s", "|"))
-    print(frmt.format("Chamber Radius", data["E"]["y"][-1]*1000, "mm", "|"))
-    print(frmt.format("Engine Length", (x[-1] - x[0]), "m", "|"))
-    print(frmt.format("Chamber Length", Lc*1000, "mm", "|"))
-    print(frmt.format("Characteristic Velocity", data["H"]["cstar"], "m/s", "|"))
-
-    print("=" * 72, f"{'|':<}")
-    print(f"{'COOLING GEOMETRY':^70} {'|':>3}")
-
-    print(frmt.format("Number of Channels", data["C"]["num_ch"], "", "|"))
-    print(frmt.format("Spacing Between Channels", data["C"]["spacing"] * 1000, "mm", "|"))
-    print(frmt.format("Channel Height", data["C"]["height"] * 1000, "mm", "|"))
-    print(frmt.format("Mass Flow Per Channel", data["F"]["mdot"]/data["C"]["num_ch"]/1000, "g/s", "|"))
-
-    print("="*72,f"{'|':<}")
-    print(f"{'GAS CONDITIONS':^70} {'|':>3}")
-
-    print(frmt.format("Chamber Pressure", Pc/1e6, "MPa", "|"))
-    print(frmt.format("Chamber Temperature", Tc, "K", "|"))
-    print(frmt.format("Gamma", gamma, "", "|"))
-    print(frmt.format("Gas Constant (R)", R, "J/kg-K", "|"))
-    print(frmt.format("Gas Coefficient of Constant Pressure (cp_g)", data["H"]["cp"][1], "J/kg-K", "|"))
-    print(frmt.format("OF Ratio", data["E"]["OF"], "", "|"))
-    print(frmt.format("Mass Flow Rate", mdot, "kg/s", "|"))
-    of                  = data["E"]["OF"]
-    print(frmt.format("Fuel Flow Rate", mdot/ (of + 1), "kg/s", "|"))
-    print(frmt.format("Ox Flow Rate", of * mdot / (of + 1), "kg/s", "|"))
-    k_gas               = data["H"]["k"]
-    print(frmt2.format("Thermal Conductivity", "", "", "|"))
-    print(frmt.format(" ", int(k_gas[0]), "W/(m-K)", "|"))
-    print(frmt.format(" ", k_gas[1], "W/(m-K)", "|"))
-    print(frmt.format(" ", k_gas[2], "W/(m-K)", "|"))
-    mu                  = data["H"]["mu"]
-    print(frmt2.format("Dynamic Viscosity", "", "", "|"))
-    print(frmt.format("", mu[0], "Pa-s", "|"))
-    print(frmt.format("", mu[1], "Pa-s", "|"))
-    print(frmt.format("", mu[2], "Pa-s", "|"))
-    Pr                  = data["H"]["Pr"]
-    print(frmt2.format("Prandtl Number", "", "", "|"))
-    print(frmt.format("", Pr[0], "", "|"))
-    print(frmt.format("", Pr[1], "", "|"))
-    print(frmt.format("", Pr[2], "", "|"))
-    print(frmt.format("Molar Weight", data["H"]["MW"], "g/mol", "|"))
-
-
-    if analyze:
-        print("="*72,f"{'|':<}")
-        print(f"{'HEAT DATA':^70} {'|':>3}")
-
-        print(frmt.format("Maximum Wall Temp", max_wall_temp, "K", "|"))
-        print(frmt.format("at ... from throat", max_wall_temp_x*1000, "mm", "|"))
-        print(frmt.format("Maximum Coolant Temp", np.max(q["T_cool"]), "K", "|"))
-        if np.max(q["T_cool"]) == data["F"]["T_max"]:
-            print(frmt2.format("The coolant exceeded the thermally stable temperature region", "","","|"))
-            print(frmt.format("The coolant was therefor clamped to", data["F"]["T_max"], "K", "|"))
-        print(frmt.format("Average Heat Transfer Coefficient (hot gas)", np.mean(q["h_hg"])/1000, "kW/m^2-K", "|"))
-        print(frmt.format("Maximum Heat Transfer Coefficient (hot gas)", max(q["h_hg"])/1000, "kW/m^2-K", "|"))
-        print(frmt.format("Maximum Heat Transfer Coefficient (wall->coolant", max(q["h_wc"])/1000, "kW/m^2-K", "|"))
-        print(frmt.format("Average Heat Rate (Qdot)", np.mean(q["Q_dot"]), "W", "|"))
-        print(frmt.format("Total Heat rate (Qdot)", sum(q["Q_dot"]), "W", "|"))
-
-        melting_point   = data["W"]["solidus"]
-        if max_wall_temp > melting_point:
-            excess      = melting_point - max_wall_temp
-            print(f"WARNING : Maximum wall temp exceeds the melting point of {data["W"]["Type"]} by {abs(excess):.2f} K")
-            percent     = abs(melting_point - max_wall_temp) / max_wall_temp * 100
-            print(f"WARNING : This is a {percent:.2f}% error")
-
-    # == END == #
-
-    # Tc_out is the temperature of coolant leaving the regens and entering the injector
-    # Tc_out is also a target value
-    # Compute the total heat transfer and mdot
-    Tc_out = 350
-    # Q: dict = total_heat_flux(qdot=q["qdot"], x=x, y=y, cp=cp, Tc_in=q["T_ci"], Tc_out=Tc_out)
-    # # print(f"Mass flow rate (first pass): {Q["mdot"]:.3f}kg/s")
-    # # print(f"Total heat flux (Q): {Q["Qtotal"]:.2f}W")
-    # flows2 = [Q["Q"]]
-    # names2 = ["Total Q"]
-    # subnames2 = [None]
-
-
-    # == PLOTTING == #
-    if analyze:
-        flows           = flows1
-        names           = names1
-        subnames        = subnames1
-
+    if display:
+        return np.max(q["T_wall_gas"])
     else:
-        flows           = flows
-        names           = names
-        subnames        = subnames
-    utils.plot_flow_chart(x=x, data=flows, labels=names, sublabels=subnames)
 
-    utils.plot_flow_field(x, y, data=q["T_wall_gas"], label="Inner Wall Temperature")
+        if analyze:
+            # Heat transfer plotting
+            flows1          = [(q["h_hg"], q["h_wc"]),
+                               (q["T_wall_gas"], q["T_wall_coolant"], q["T_aw"]),
+                               (q["R_hg_w"], q["R_w_w"], q["R_w_c"]),
+                               q["Q_dot"],
+                               q["Re"],
+                               q["Dh"]
+                               ]
+
+            names1          = ["Heat Transfer Coefficients",
+                               "Wall Temps",
+                               "Wall Resistances",
+                               "Q_dot",
+                               "Reynolds",
+                               "Dh"
+                               ]
+
+            subnames1       = [("Gas-Wall", "Wall-Coolant"),
+                               ("Wall-Gas", "Wall-Coolant", "Adiabatic Wall"),
+                               ("Wall-Gas", "Wall-Wall", "Wall-Coolant"),
+                               None,
+                               None,
+                               None
+                               ]
+
+            max_wall_temp_x = data_at_point(A=q["T_wall_gas"], B=x, value=np.max(q["T_wall_gas"]))
+            max_wall_temp   = np.max(q["T_wall_gas"])
+
+        Lc = data["E"]["Lc"]
+        if Lc is None:
+            Lc = 0
+
+
+        print("=" * 72, f"{'|':<}")
+        print(f"{'ENGINE GEOMETRY':^70} {'|':>3}")
+
+        print(frmt.format("Throat Diameter", min(y) * 2*100, "cm", "|"))
+        print(frmt.format("Exit Velocity", exit_vel, "m/s", "|"))
+        print(frmt.format("Exit Diameter", y[-1] * 2, "m", "|"))
+        print(frmt.format("Total Force @ SL", exit_vel * mdot / 1e3, "kN", "|"))
+        print(frmt.format("Total Engine Length", x[-1], "m", "|"))
+        print(frmt.format("Mass Flow Rate", mdot_isen, "kg/s", "|"))
+        print(frmt.format("Expansion Ratio", np.max(eps), "kg/s", "|"))
+        print(frmt.format("Chamber Radius", data["E"]["y"][-1]*1000, "mm", "|"))
+        print(frmt.format("Engine Length", (x[-1] - x[0]), "m", "|"))
+        print(frmt.format("Chamber Length", Lc*1000, "mm", "|"))
+        print(frmt.format("Characteristic Velocity", data["H"]["cstar"], "m/s", "|"))
+
+        print("=" * 72, f"{'|':<}")
+        print(f"{'COOLING GEOMETRY':^70} {'|':>3}")
+
+        print(frmt.format("Number of Channels", data["C"]["num_ch"], "", "|"))
+        print(frmt.format("Spacing Between Channels", data["C"]["spacing"] * 1000, "mm", "|"))
+        print(frmt.format("Channel Height", data["C"]["height"] * 1000, "mm", "|"))
+        print(frmt.format("Mass Flow Per Channel", data["F"]["mdot"]/data["C"]["num_ch"]/1000, "g/s", "|"))
+
+        print("="*72,f"{'|':<}")
+        print(f"{'GAS CONDITIONS':^70} {'|':>3}")
+
+        print(frmt.format("Chamber Pressure", Pc/1e6, "MPa", "|"))
+        print(frmt.format("Chamber Temperature", Tc, "K", "|"))
+        print(frmt.format("Gamma", gamma, "", "|"))
+        print(frmt.format("Gas Constant (R)", R, "J/kg-K", "|"))
+        print(frmt.format("Gas Coefficient of Constant Pressure (cp_g)", data["H"]["cp"][1], "J/kg-K", "|"))
+        print(frmt.format("OF Ratio", data["E"]["OF"], "", "|"))
+        print(frmt.format("Mass Flow Rate", mdot, "kg/s", "|"))
+        of                  = data["E"]["OF"]
+        print(frmt.format("Fuel Flow Rate", mdot/ (of + 1), "kg/s", "|"))
+        print(frmt.format("Ox Flow Rate", of * mdot / (of + 1), "kg/s", "|"))
+        k_gas               = data["H"]["k"]
+        print(frmt2.format("Thermal Conductivity", "", "", "|"))
+        print(frmt.format(" ", int(k_gas[0]), "W/(m-K)", "|"))
+        print(frmt.format(" ", k_gas[1], "W/(m-K)", "|"))
+        print(frmt.format(" ", k_gas[2], "W/(m-K)", "|"))
+        mu                  = data["H"]["mu"]
+        print(frmt2.format("Dynamic Viscosity", "", "", "|"))
+        print(frmt.format("", mu[0], "Pa-s", "|"))
+        print(frmt.format("", mu[1], "Pa-s", "|"))
+        print(frmt.format("", mu[2], "Pa-s", "|"))
+        Pr                  = data["H"]["Pr"]
+        print(frmt2.format("Prandtl Number", "", "", "|"))
+        print(frmt.format("", Pr[0], "", "|"))
+        print(frmt.format("", Pr[1], "", "|"))
+        print(frmt.format("", Pr[2], "", "|"))
+        print(frmt.format("Molar Weight", data["H"]["MW"], "g/mol", "|"))
+
+
+        if analyze:
+            print("="*72,f"{'|':<}")
+            print(f"{'HEAT DATA':^70} {'|':>3}")
+
+            print(frmt.format("Maximum Wall Temp", max_wall_temp, "K", "|"))
+            print(frmt.format("at ... from throat", max_wall_temp_x*1000, "mm", "|"))
+            print(frmt.format("Maximum Coolant Temp", np.max(q["T_cool"]), "K", "|"))
+            if np.max(q["T_cool"]) == data["F"]["T_max"]:
+                print(frmt2.format("The coolant exceeded the thermally stable temperature region", "","","|"))
+                print(frmt.format("The coolant was therefor clamped to", data["F"]["T_max"], "K", "|"))
+            print(frmt.format("Average Heat Transfer Coefficient (hot gas)", np.mean(q["h_hg"])/1000, "kW/m^2-K", "|"))
+            print(frmt.format("Maximum Heat Transfer Coefficient (hot gas)", max(q["h_hg"])/1000, "kW/m^2-K", "|"))
+            print(frmt.format("Maximum Heat Transfer Coefficient (wall->coolant", max(q["h_wc"])/1000, "kW/m^2-K", "|"))
+            print(frmt.format("Average Heat Rate (Qdot)", np.mean(q["Q_dot"]), "W", "|"))
+            print(frmt.format("Total Heat rate (Qdot)", sum(q["Q_dot"]), "W", "|"))
+
+            melting_point   = data["W"]["solidus"]
+            if max_wall_temp > melting_point:
+                excess      = melting_point - max_wall_temp
+                print(f"WARNING : Maximum wall temp exceeds the melting point of {data["W"]["Type"]} by {abs(excess):.2f} K")
+                percent     = abs(melting_point - max_wall_temp) / max_wall_temp * 100
+                print(f"WARNING : This is a {percent:.2f}% error")
+
+        # == END == #
+
+        # Tc_out is the temperature of coolant leaving the regens and entering the injector
+        # Tc_out is also a target value
+        # Compute the total heat transfer and mdot
+        Tc_out = 350
+        # Q: dict = total_heat_flux(qdot=q["qdot"], x=x, y=y, cp=cp, Tc_in=q["T_ci"], Tc_out=Tc_out)
+        # # print(f"Mass flow rate (first pass): {Q["mdot"]:.3f}kg/s")
+        # # print(f"Total heat flux (Q): {Q["Qtotal"]:.2f}W")
+        # flows2 = [Q["Q"]]
+        # names2 = ["Total Q"]
+        # subnames2 = [None]
+
+
+        # == PLOTTING == #
+        if analyze:
+            flows           = flows1
+            names           = names1
+            subnames        = subnames1
+
+        else:
+            flows           = flows
+            names           = names
+            subnames        = subnames
+        utils.plot_flow_chart(x=x, data=flows, labels=names, sublabels=subnames)
+
+        utils.plot_flow_field(x, y, data=q["T_wall_gas"], label="Inner Wall Temperature")
+
 
 
 if __name__ == '__main__':
