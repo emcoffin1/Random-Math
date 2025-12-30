@@ -6,6 +6,7 @@ from NozzleDesign import build_nozzle
 import _extra_utils as utils
 from GasProperties import HotGas_Properties, Fluid_Properties, Material_Properties
 import matplotlib.pyplot as plt
+import copy
 
 
 def data_at_point(A, B, value):
@@ -142,8 +143,8 @@ def main_basic(data: dict, nozzle_build: bool = True, display=True):
         analyze         = False
         q = dict()
 
-    if display:
-        return np.max(q["T_wall_gas"])
+    if not display:
+        return np.max(q["T_wall_gas"]), np.max(data["W"]["yield_strength"]/(data["Flow"]["P"]*data["E"]["y"]/data["W"]["thickness"]))
     else:
 
         if analyze:
@@ -377,7 +378,106 @@ if __name__ == '__main__':
         HotGas_Properties(Pc=info["E"]["Pc"], fuel=info["F"]["Type"], ox=info["O"]["Type"], OF=info["E"]["OF"], dic=info)
         Fluid_Properties(dic=info)
         Material_Properties(dic=info)
+    #
+    # # print(f"run 1: {info}")
+    # # == RUN ME == #
+    # main_basic(data=info, nozzle_build=True)
 
-    # print(f"run 1: {info}")
-    # == RUN ME == #
-    main_basic(data=info, nozzle_build=True)
+    l = np.linspace(0.01,0.5, 50)
+    results = []
+    fos_arr = []
+    for i in l:
+
+        info = {"CEA": True,
+                "plots": "no",
+                "dimensions": 1,  # Complexity of heat transfer
+                "E": {
+                    "Pc": 3e6,  # Chamber Pressure [Pa]
+                    "Pe": 60000,  # Ambient Pressure (exit) [Pa]
+                    "Tc": 3500,  # Chamber temp [K]
+                    "mdot": 0.73,  # Mass Flow Rate [kg/s]
+                    "OF": 2.25,
+                    "size": 1.0,
+                    "CR": 8,
+                    "Lc": None,
+                },
+                "H": {
+                    "mu": None,
+                    "k": None,
+                    "rho": None,
+                    "gamma": None,
+                    "cp": None,
+                    "cstar": None,
+                    "MW": None,
+                },
+                "F": {
+                    "Type": "RP-1",
+                    "T": 298,
+                    "P": None,
+                    "mu": None,
+                    "k": None,
+                    "rho": None,
+                    "gamma": None,
+                    "cp": None,
+                    "cstar": None,
+                    "MW": None,
+                    "mdot": None,
+                },
+                "O": {
+                    "Type": "LOX",
+                    "T": 98,
+                    "P": None,
+                    "mu": None,
+                    "k": None,
+                    "rho": None,
+                    "gamma": None,
+                    "cp": None,
+                    "cstar": None,
+                    "MW": None,
+                    "mdot": None,
+                },
+                "W": {
+                    # "Type": "SS 316L",
+                    # "Type": "Tungsten",
+                    # "Type": "Copper Chromium",
+                    "Type": "Inconel 718",
+                    "thickness": i
+                },
+                "C": {
+                    "Type": "Square",
+                    "spacing": 0.0006,  # Fin thickness -- space between channels
+                    "height": 0.0006,  # Channel height
+                    "num_ch": 120,
+                    "h": None,
+                    "Nu": None,
+                    "Re": None,
+                },
+                "Flow": {
+                    "x": None,
+                    "y": None,
+                    "a": None,
+                    "eps": None
+                },
+
+                }
+
+        if info["CEA"]:
+            # Run rocketcea
+            HotGas_Properties(Pc=info["E"]["Pc"], fuel=info["F"]["Type"], ox=info["O"]["Type"], OF=info["E"]["OF"],
+                              dic=info)
+            Fluid_Properties(dic=info)
+            Material_Properties(dic=info)
+        h_max, fos = main_basic(data=info, display=False, nozzle_build=True)
+        results.append(h_max)
+        fos_arr.append(fos)
+
+    for i in range(len(l)):
+        print(f"{l[i]:.2f} m: {results[i]:.2f} K   ===   {fos_arr[i]:.2f} Pa")
+
+    plt.plot(l, results)
+    plt.show()
+
+    plt.plot(l, fos_arr)
+    plt.show()
+
+
