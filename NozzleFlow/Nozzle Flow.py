@@ -1,12 +1,13 @@
 
 from HeatTransfer.bartz_formulas import bartz_heat_transfer_const, bartz_heat_transfer_1d
-from MachSolver import mach_from_area_ratio as mach_eps
+from MachSolver import isentropic_nozzle_flow
 import numpy as np
 from NozzleDesign import build_nozzle
 import _extra_utils as utils
 from GasProperties import HotGas_Properties, Fluid_Properties, Material_Properties
 import matplotlib.pyplot as plt
 import copy
+from ExtraAnalysis import *
 
 
 def data_at_point(A, B, value):
@@ -26,30 +27,6 @@ def throat_radius(flow: dict):
     throat_A = mdot / (Pc * np.sqrt(gamma/(R*T)) * (2/(gamma+1))**((gamma+1)/(2 * (gamma-1))))
     Rt = np.sqrt(throat_A / np.pi)
     return Rt
-
-
-def isentropic_nozzle_flow(eps, data: dict):
-    # Unpack data dictionary
-    T0, P0, gamma, R = data["E"]['Tc'], data["E"]['Pc'], data["H"]['gamma'], data["H"]['R']
-
-    # Compute mach through geometry
-    M = np.array([mach_eps(eps=e, gamma=gamma) for e in eps])
-    # Compute static temp
-    T = T0 / (1 + (gamma-1)/2 * M**2)
-    # Compute static pressure
-    P = P0 * (T/T0)**(gamma/(gamma-1))
-    # Compute speed of sound at each station
-    a = np.sqrt(gamma * R * T)
-    # Compute speed of gas
-    U = M * a
-    # Compute density
-    rho = P / (R * T)
-
-    data["Flow"]["M"] = M
-    data["Flow"]["P"] = P
-    data["Flow"]["T"] = T
-    data["Flow"]["U"] = U
-    data["Flow"]["rho"] = rho
 
 
 def engine_analysis(flow: dict):
@@ -96,6 +73,16 @@ def main_basic(data: dict, nozzle_build: bool = True, display=True):
         x, y, a         = build_nozzle(data=data)
         cooling_geometry(dic=info)
 
+        # data["E"]["Pc"] = 6e6
+        #
+        # if info["CEA"]:
+        #     # Run rocketcea
+        #     HotGas_Properties(Pc=info["E"]["Pc"], fuel=info["F"]["Type"], ox=info["O"]["Type"], OF=info["E"]["OF"],
+        #                       dic=info)
+        #     Fluid_Properties(dic=info)
+        #     Material_Properties(dic=info)
+
+
     else:
         x = 1
         y = 2
@@ -129,13 +116,12 @@ def main_basic(data: dict, nozzle_build: bool = True, display=True):
     # == END == #
 
     # == HEAT TRANSFER == #
-    analyze             = True
+    analyze             = False
     dims                = data["dimensions"]
     if dims == 0:
         q: dict         = bartz_heat_transfer_const(info=data)
     elif dims == 1:
-        HotGas_Properties(Pc=info["E"]["Pc"], fuel=info["F"]["Type"], ox=info["O"]["Type"], OF=info["E"]["OF"],
-                          dic=info)
+        HotGas_Properties(dic=info)
 
         q: dict         = bartz_heat_transfer_1d(info=data)
 
@@ -144,7 +130,7 @@ def main_basic(data: dict, nozzle_build: bool = True, display=True):
         q = dict()
 
     if not display:
-        return np.max(q["T_wall_gas"]), np.max(data["W"]["yield_strength"]/(data["Flow"]["P"]*data["E"]["y"]/data["W"]["thickness"]))
+        return np.max(q["T_cool"]), np.max(q["T_wall_gas"]), np.max(data["W"]["yield_strength"]/(data["Flow"]["P"]*data["E"]["y"]/data["W"]["thickness"]))
     else:
 
         if analyze:
@@ -207,8 +193,21 @@ def main_basic(data: dict, nozzle_build: bool = True, display=True):
         print("="*72,f"{'|':<}")
         print(f"{'GAS CONDITIONS':^70} {'|':>3}")
 
+        P_exit = data["Flow"]["P"][-1]
+        P_ambient = data["E"]["Pe"]
+        if P_exit < P_ambient:
+            condition = "Over"
+        elif P_exit > P_ambient:
+            condition = "Under"
+        else:
+            condition = "Perfect"
+
         print(frmt.format("Chamber Pressure", Pc/1e6, "MPa", "|"))
         print(frmt.format("Chamber Temperature", Tc, "K", "|"))
+        print(frmt.format("Exit Pressure", data["Flow"]["P"][-1] / 1e6, "MPa", "|"))
+        print(frmt2.format("Expansion Condition", condition, "", "|"))
+        print(frmt.format("Ambient Pressure", P_ambient / 1e6, "MPa", "|"))
+
         print(frmt.format("Gamma", gamma, "", "|"))
         print(frmt.format("Gas Constant (R)", R, "J/kg-K", "|"))
         print(frmt.format("Gas Coefficient of Constant Pressure (cp_g)", data["H"]["cp"][1], "J/kg-K", "|"))
@@ -304,13 +303,15 @@ if __name__ == '__main__':
             "dimensions": 1,    # Complexity of heat transfer
             "E": {
                 "Pc": 3e6,  # Chamber Pressure [Pa]
-                "Pe": 60000,  # Ambient Pressure (exit) [Pa]
+                "Pe": 101325,  # Ambient Pressure (exit) [Pa]
                 "Tc": 3500,  # Chamber temp [K]
                 "mdot": 0.73,  # Mass Flow Rate [kg/s]
                 "OF": 2.25,
                 "size": 1.0,
                 "CR": 8,
                 "Lc": None,
+                "x": None,
+                "y": None,
             },
             "H": {
                 "mu": None,
@@ -375,109 +376,119 @@ if __name__ == '__main__':
 
     if info["CEA"]:
         # Run rocketcea
-        HotGas_Properties(Pc=info["E"]["Pc"], fuel=info["F"]["Type"], ox=info["O"]["Type"], OF=info["E"]["OF"], dic=info)
+        HotGas_Properties(dic=info)
         Fluid_Properties(dic=info)
         Material_Properties(dic=info)
     #
     # # print(f"run 1: {info}")
-    # # == RUN ME == #
+    # == RUN ME == #
     # main_basic(data=info, nozzle_build=True)
+    Startup_Analysis(data=info)
 
-    l = np.linspace(0.01,0.5, 50)
-    results = []
-    fos_arr = []
-    for i in l:
 
-        info = {"CEA": True,
-                "plots": "no",
-                "dimensions": 1,  # Complexity of heat transfer
-                "E": {
-                    "Pc": 3e6,  # Chamber Pressure [Pa]
-                    "Pe": 60000,  # Ambient Pressure (exit) [Pa]
-                    "Tc": 3500,  # Chamber temp [K]
-                    "mdot": 0.73,  # Mass Flow Rate [kg/s]
-                    "OF": 2.25,
-                    "size": 1.0,
-                    "CR": 8,
-                    "Lc": None,
-                },
-                "H": {
-                    "mu": None,
-                    "k": None,
-                    "rho": None,
-                    "gamma": None,
-                    "cp": None,
-                    "cstar": None,
-                    "MW": None,
-                },
-                "F": {
-                    "Type": "RP-1",
-                    "T": 298,
-                    "P": None,
-                    "mu": None,
-                    "k": None,
-                    "rho": None,
-                    "gamma": None,
-                    "cp": None,
-                    "cstar": None,
-                    "MW": None,
-                    "mdot": None,
-                },
-                "O": {
-                    "Type": "LOX",
-                    "T": 98,
-                    "P": None,
-                    "mu": None,
-                    "k": None,
-                    "rho": None,
-                    "gamma": None,
-                    "cp": None,
-                    "cstar": None,
-                    "MW": None,
-                    "mdot": None,
-                },
-                "W": {
-                    # "Type": "SS 316L",
-                    # "Type": "Tungsten",
-                    # "Type": "Copper Chromium",
-                    "Type": "Inconel 718",
-                    "thickness": i
-                },
-                "C": {
-                    "Type": "Square",
-                    "spacing": 0.0006,  # Fin thickness -- space between channels
-                    "height": 0.0006,  # Channel height
-                    "num_ch": 120,
-                    "h": None,
-                    "Nu": None,
-                    "Re": None,
-                },
-                "Flow": {
-                    "x": None,
-                    "y": None,
-                    "a": None,
-                    "eps": None
-                },
-
-                }
-
-        if info["CEA"]:
-            # Run rocketcea
-            HotGas_Properties(Pc=info["E"]["Pc"], fuel=info["F"]["Type"], ox=info["O"]["Type"], OF=info["E"]["OF"],
-                              dic=info)
-            Fluid_Properties(dic=info)
-            Material_Properties(dic=info)
-        h_max, fos = main_basic(data=info, display=False, nozzle_build=True)
-        results.append(h_max)
-        fos_arr.append(fos)
-
-    for i in range(len(l)):
-        print(f"{l[i]:.2f} m: {results[i]:.2f} K   ===   {fos_arr[i]:.2f} Pa")
-
-    plt.plot(l, results)
-    plt.show()
-
-    plt.plot(l, fos_arr)
-    plt.show()
+    # l = np.linspace(0.01,0.5, 50)
+    # results = []
+    # fos_arr = []
+    # t_wall_arr = []
+    # for i in l:
+    #
+    #     info = {"CEA": True,
+    #         "plots": "no",
+    #         "dimensions": 1,    # Complexity of heat transfer
+    #         "E": {
+    #             "Pc": 3e6,  # Chamber Pressure [Pa]
+    #             "Pe": 101325,  # Ambient Pressure (exit) [Pa]
+    #             "Tc": 3500,  # Chamber temp [K]
+    #             "mdot": 0.73,  # Mass Flow Rate [kg/s]
+    #             "OF": 2.25,
+    #             "size": 1.0,
+    #             "CR": 8,
+    #             "Lc": None,
+    #             "x": None,
+    #             "y": None,
+    #         },
+    #         "H": {
+    #             "mu": None,
+    #             "k": None,
+    #             "rho": None,
+    #             "gamma": None,
+    #             "cp": None,
+    #             "cstar": None,
+    #             "MW": None,
+    #         },
+    #         "F": {
+    #             "Type": "RP-1",
+    #             "T": 298,
+    #             "P": None,
+    #             "mu": None,
+    #             "k": None,
+    #             "rho": None,
+    #             "gamma": None,
+    #             "cp": None,
+    #             "cstar": None,
+    #             "MW": None,
+    #             "mdot": None,
+    #         },
+    #         "O": {
+    #             "Type": "LOX",
+    #             "T": 98,
+    #             "P": None,
+    #             "mu": None,
+    #             "k": None,
+    #             "rho": None,
+    #             "gamma": None,
+    #             "cp": None,
+    #             "cstar": None,
+    #             "MW": None,
+    #             "mdot": None,
+    #         },
+    #         "W": {
+    #             # "Type": "SS 316L",
+    #             # "Type": "Tungsten",
+    #             # "Type": "Copper Chromium",
+    #             "Type": "Inconel 718",
+    #             "thickness": i
+    #         },
+    #         "C": {
+    #             "Type": "Square",
+    #             "spacing": 0.0006,   # Fin thickness -- space between channels
+    #             "height": 0.0006,     # Channel height
+    #             "num_ch": 120,
+    #             "h": None,
+    #             "Nu": None,
+    #             "Re": None,
+    #         },
+    #         "Flow": {
+    #             "x": None,
+    #             "y": None,
+    #             "a": None,
+    #             "eps": None
+    #         },
+    #
+    #
+    #         }
+    #
+    #
+    #
+    #     if info["CEA"]:
+    #         # Run rocketcea
+    #         HotGas_Properties(Pc=info["E"]["Pc"], fuel=info["F"]["Type"], ox=info["O"]["Type"], OF=info["E"]["OF"],
+    #                           dic=info)
+    #         Fluid_Properties(dic=info)
+    #         Material_Properties(dic=info)
+    #     h_max, t_wall, fos = main_basic(data=info, display=False, nozzle_build=True)
+    #     results.append(h_max)
+    #     fos_arr.append(fos)
+    #     t_wall_arr.append(t_wall)
+    #
+    # # for i in range(len(l)):
+    # #     print(f"{l[i]:.2f} m: {results[i]:.2f} K   ===   {fos_arr[i]:.2f} Pa")
+    #
+    # plt.plot(l, np.gradient(l, results))
+    # # plt.axhline(y=588, linestyle="--", color="orange")
+    # plt.show()
+    #
+    # plt.plot(l, np.gradient(l,t_wall_arr))
+    # plt.show()
 
 

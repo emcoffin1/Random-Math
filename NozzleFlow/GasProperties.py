@@ -3,8 +3,9 @@ from scipy.interpolate import PchipInterpolator
 from CoolProp.CoolProp import PropsSI
 import numpy as np
 
-def HotGas_Properties(Pc, fuel, ox, OF, dic, eps=None):
+def HotGas_Properties(dic, eps=None, forced=False):
     """Passes in metric but is converted to SI. RocketCEA returns SI and is then converted to metric"""
+    Pc, fuel, ox, OF = dic["E"]["Pc"], dic["F"]["Type"], dic["O"]["Type"], dic["E"]["OF"]
     cea = CEA_Obj(
         oxName=ox,
         fuelName=fuel
@@ -53,14 +54,15 @@ def HotGas_Properties(Pc, fuel, ox, OF, dic, eps=None):
     cp = np.array(cp)
     gamma = np.array([gam_c, gam_t, gam_e])
 
-    # Interpolators
-    mu_M = PchipInterpolator(M_tab, mu)
-    k_M = PchipInterpolator(M_tab, k)
-    cp_M = PchipInterpolator(M_tab, cp)
-    gamma_M = PchipInterpolator(M_tab, gamma)
 
     # Expand to flowfield if present
-    if "M" in dic["Flow"]:
+    if "M" in dic["Flow"] or forced:
+
+        # Interpolators
+        mu_M = PchipInterpolator(M_tab, mu)
+        k_M = PchipInterpolator(M_tab, k)
+        cp_M = PchipInterpolator(M_tab, cp)
+        gamma_M = PchipInterpolator(M_tab, gamma)
 
         M = dic["Flow"]["M"]
         dic["H"]["mu"] = mu_M(M)
