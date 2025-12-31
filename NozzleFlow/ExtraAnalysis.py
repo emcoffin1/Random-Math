@@ -83,7 +83,8 @@ def compute_load_stress(snap, M, F, x_ref):
     long_stress = hoop_stress / 2
 
 
-    # moment of inertia, assumed
+    # moment of inertia, assumed thin circular ring
+    # uses mean radius and wall thickness
     I = np.pi * (r_m**3) * t_eff
 
     bend_moment = M + F * (x - x_ref)
