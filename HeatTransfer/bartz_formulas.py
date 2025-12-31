@@ -29,8 +29,6 @@ def bartz_heat_transfer_const(info: dict, w=0.7):
 
     x, y, T, M = info["Flow"]["x"], info["Flow"]["y"], info["Flow"]["T"], info["Flow"]["M"]
 
-    D = 2*y
-    Dt = 2*Rt
 
     for i in range(1):
 
@@ -337,9 +335,6 @@ def bartz_approx(Taw, dic:dict, dimension: int, step: int, iteration: int):
         rho = P / (R * T)
         Re = rho * v * D / mu
 
-        # h_hg = (0.026 / Dt**0.2) * (mu**0.2 * cp / Pr**0.6) \
-        #      * (Pc / cstar)**0.8 * np.abs(eps[i])**-0.9
-
         sigma1 = (0.5 * (Taw / Tc) * (1 + (gamma - 1) / 2 * Mi ** 2) + 0.5) ** -0.68
         sigma2 = (1 + (gamma - 1) / 2 * Mi ** 2) ** -0.12
         sigma = sigma1 * sigma2
@@ -347,14 +342,6 @@ def bartz_approx(Taw, dic:dict, dimension: int, step: int, iteration: int):
         # h_hg = h_hg * sigma1 * sigma2
         Nu = 0.026 * (Re**0.8) * (Pr**0.4) * (eps[i]**-0.9) * sigma
         h = Nu * k / D
-
-
-        # print(Nu, Pr, eps[i])
-        # if eps[i] == 1:
-        #     print("===",dic["E"]["mdot"] / dic["E"]["a"][i])
-        #     print("===" ,mu)
-        #     print("===", D)
-
 
         return h
 
@@ -420,16 +407,6 @@ def dittus_appro(dx:float, dic:dict, dimension: int, step: int):
         else:
             raise ValueError("Need fuel mass flow rate and channel area (flow area) "
                              "to determine convective heat transfer coefficient")
-
-        # # Calculate Nu based on flow characteristics
-        # if Re <= 2300:
-        #     # Fully-developed laminar, constant wall heat flux
-        #     Nu = 4.36
-        #
-        # else:
-        #     # Gnielinksi (for smooth duct)
-        #     f = (0.79 * np.log(Re) - 1.64) ** -2
-        #     Nu = ((f / 8.0) * (Re - 1000) * Pr) / (1.0 + 12.7 * np.sqrt(f / 8) * (Pr ** (2 / 3) - 1.0))
 
         Nu_lam = 4.36
 
