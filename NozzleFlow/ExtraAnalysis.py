@@ -218,6 +218,15 @@ def First_Modal_Analysis(data: dict):
     else:
         print(frmt2.format("     [ERROR] No line lengths present!", "-", "-", "|"))
 
+
+    # Helmholtz resonator, used to determine the cavity size to dampen specific frequencies
+    A_V_L_long = (f_long * 2 * np.pi / a_chamber)**2
+    A_V_L_tang = (f_tang * 2 * np.pi / a_chamber)**2
+    A_V_L_radi = (f_radi * 2 * np.pi / a_chamber)**2
+
+    print(frmt2.format("Helmoltz Resonator Chamber Dimension Constant", "", "" ,"|"))
+
+
     return f_long, f_tang, f_radi
 
 
