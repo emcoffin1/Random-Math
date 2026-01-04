@@ -302,6 +302,8 @@ if __name__ == '__main__':
                 "Lc": None,
                 "x": None,
                 "y": None,
+                "a": None,
+                "aspect_ratio": None,
             },
             "H": {
                 "mu": None,
@@ -355,11 +357,15 @@ if __name__ == '__main__':
                 "Re": None,
             },
             "Flow": {
-                "x": None,
-                "y": None,
-                "a": None,
-                "eps": None
+                "P": None,
             },
+            "Injector": {
+                "dP": None,
+                "tau_eff": None,
+                "L_fuel": 0.1,
+                "L_ox": 0.2,
+
+            }
 
 
             }
@@ -373,7 +379,8 @@ if __name__ == '__main__':
     # # print(f"run 1: {info}")
     # == RUN ME == #
     # main_basic(data=info, nozzle_build=True)
-    Startup_Analysis(data=info)
+    # Startup_Analysis(data=info)
+    First_Modal_Analysis(data=info)
 
 
     # l = np.linspace(0.01,0.5, 50)

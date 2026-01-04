@@ -116,6 +116,7 @@ def Fluid_Properties(dic: dict, coolant_only=False):
             T_f = 510
 
         if fluid == "RP-1":
+            R = 49  # J/kg/k
             """https://rocketprops.readthedocs.io/en/latest/rp1_prop.html"""
             rho = 810.0 - 0.75 * (T_f - 288.15)                 # kg/m^3
             a0 = 9.06668
@@ -144,6 +145,9 @@ def Fluid_Properties(dic: dict, coolant_only=False):
 
         elif coolant_only == False:
 
+            R_u = PropsSI("GAS_CONSTANT", "T", T_f, "P", P_f, fluid)
+            M = PropsSI("molemass", "T", T_f, "P", P_f, fluid)
+            R = R_u / M
             rho = PropsSI("D", "T", T_f, "P", P_f, fluid)
             mu = PropsSI("V", "T", T_f, "P", P_f, fluid)
             cp = PropsSI("C", "T", T_f, "P", P_f, fluid)
@@ -152,6 +156,7 @@ def Fluid_Properties(dic: dict, coolant_only=False):
             gamma = cp / cv
             Pr = cp * mu / k
 
+        dic[i]["R"] = R
         dic[i]["mu"] = mu
         dic[i]["rho"] = rho
         dic[i]["cp"] = cp

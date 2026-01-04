@@ -63,6 +63,7 @@ def lateral_load_per_snap(snap, sep_x, load_eps, x_ref):
 
     return Fx, Mx
 
+
 def compute_load_stress(snap, M, F, x_ref):
 
     t_wall = snap["W"]["thickness"]
@@ -97,6 +98,127 @@ def compute_load_stress(snap, M, F, x_ref):
     von_stress_minus = np.sqrt(hoop_stress**2 + long_stress_minus**2 - hoop_stress*long_stress_minus)
 
     return np.maximum(von_stress_plus, von_stress_minus)
+
+
+def First_Modal_Analysis(data: dict):
+    """
+    Larger analysis tool to determine the first modes in longitudinal, tangential, and radial orientation
+    Uses the H&H formulation on page 129
+    """
+    frmt                = "{:<50} {:<10.3f} {:<10} {:<}"
+    frmt2               = "{:<50} {:<10} {:<10} {:<}"
+
+    x = data["E"]["x"]
+    if x is None:
+        x, y, a = build_nozzle(data=data)
+        # cooling_geometry(dic=data)
+
+    else:
+        y = data["E"]["y"]
+        a = data["E"]["a"]
+
+    eps                 = data["E"]["aspect_ratio"]
+    ind                 = np.where(eps == 1.0)[0][0]
+    eps[:ind]           *= -1
+    isentropic_nozzle_flow(eps=eps, data=data)
+
+    T_c_static = data["Flow"]["T"][-1]
+    d_c = data["E"]["y"][0] * 2
+    gamma_type = type(data["H"]["gamma"])
+    R_c = data["H"]["R"]
+    L_c = data["E"]["Lc"]
+
+    if gamma_type == np.ndarray:
+        gamma_c = data["H"]["gamma"][0]
+    else:
+        gamma_c = data["H"]["gamma"]
+
+
+    a_chamber = np.sqrt(gamma_c * T_c_static * R_c)
+
+
+    f_long = a_chamber / (2 * L_c)
+    f_tang = 0.59 * a_chamber / (d_c)
+    f_radi = 1.22 * a_chamber / d_c
+    print(frmt2.format(f"First Modal Frequencies", "", "", "|"))
+    print(frmt.format("     Longitudinal", f_long, "Hz", "|"))
+    print(frmt.format("     Tangential", f_tang, "Hz", "|"))
+    print(frmt.format("     Radial", f_radi, "Hz", "|"))
+
+    # ======================= #
+    # == INJECTOR ANALYSIS == #
+    # ======================= #
+
+    # Goal is to minimize the mass flow rate change and therefor chamber pressure change
+    # Pressure drop to minimize dm/m
+    # This does not use modal or frequency based analysis
+    P_c_stag = data["E"]["Pc"]
+    dP_injector = data["Injector"]["dP"]
+    mdot = data["E"]["mdot"]
+
+    # Injector delay phase check
+    tau_eff = data["Injector"]["tau_eff"]
+
+    print(frmt2.format("Injector Delay Phase Check", "", "", "|"))
+    if tau_eff is not None:
+        phi_long = 2 * np.pi * f_long * tau_eff
+        phi_tang = 2 * np.pi * f_tang * tau_eff
+        phi_radi = 2 * np.pi * f_radi * tau_eff
+        phis = {"Longitudinal": phi_long, "Tangential": phi_tang, "Radial": phi_radi}
+        print(frmt2.format("A value > 1 requires a design change", "", "", "|"))
+        for k,v in phis.items():
+            print(frmt.format(f"     {k}", v, "", "|"))
+
+    else:
+        phi_long, phi_tang, phi_radi = 0, 0, 0
+        print(frmt2.format("     [ERROR] Effective TAU not computed", "-", "-", "|"))
+
+    # Feed system acoustic resonance
+    # Determines if the feed wave is close in resonant frequency to the longitudinal mode
+    # Speed of fluid assumed to be speed of sound of the fluid
+    L_line_fuel = data["Injector"]["L_fuel"]
+    L_line_ox = data["Injector"]["L_ox"]
+    print(frmt2.format("Feed System Acoustic Resonance", "", "", "|"))
+
+    if L_line_ox is not None and L_line_fuel is not None:
+        gamma_fuel = data["F"]["gamma"]
+        temp_fuel = data["F"]["T"]
+        R_fuel = data["F"]["R"]
+
+        gamma_ox = data["O"]["gamma"]
+        temp_ox = data["O"]["T"]
+        R_ox = data["O"]["R"]
+
+        c_feed_fuel = np.sqrt(gamma_fuel * temp_fuel * R_fuel)
+        c_feed_ox = np.sqrt(gamma_ox * temp_ox * R_ox)
+
+        f_feed_fuel = c_feed_fuel / (4 * L_line_fuel)
+        f_feed_ox = c_feed_ox / (4 * L_line_ox)
+
+        if np.isclose(f_long, f_feed_fuel):
+            print(frmt2.format("Fuel Feed back is similar resonance!", "", "", "|"))
+            print(frmt.format("     Fuel", f_feed_fuel, "Hz", "|"))
+            print(frmt.format("     Longitudinal", f_long, "Hz", "|"))
+            print(frmt2.format("     Recommended to change oxidizer line length!", "", "", "|"))
+        else:
+            print(frmt2.format("Fuel feed back is different enough", "", "", "|"))
+            print(frmt.format("     Fuel", f_feed_fuel, "Hz", "|"))
+            print(frmt.format("     Longitudinal", f_long, "Hz", "|"))
+
+        if np.isclose(f_long, f_feed_ox):
+            print(frmt2.format("Fuel Feed back is similar resonance!", "", "", "|"))
+            print(frmt.format("     Ox", f_feed_ox, "Hz", "|"))
+            print(frmt.format("     Longitudinal", f_long, "Hz", "|"))
+            print(frmt2.format("     Recommended to change oxidizer line length!", "", "", "|"))
+        else:
+            print(frmt2.format("Oxidizer feed back is different enough", "", "", "|"))
+            print(frmt.format("     Ox", f_feed_ox, "Hz", "|"))
+            print(frmt.format("     Longitudinal", f_long, "Hz", "|"))
+
+    else:
+        print(frmt2.format("     [ERROR] No line lengths present!", "-", "-", "|"))
+
+    return f_long, f_tang, f_radi
 
 
 
