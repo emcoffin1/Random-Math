@@ -12,7 +12,10 @@ def HotGas_Properties(dic, eps=None, forced=False):
     )
     Pc_psi = Pc * 0.000145038
 
-    dic["E"]["Tc"] = cea.get_Tcomb(Pc=Pc_psi, MR=OF) * 5/9
+    Tc = dic["E"]["Tc"]
+    if Tc is None:
+        dic["E"]["Tc"] = cea.get_Tcomb(Pc=Pc_psi, MR=OF) * 5/9
+
 
     if eps is not None:
         mw, gam_c = cea.get_Chamber_MolWt_gamma(Pc=Pc_psi, MR=OF, eps=eps)
@@ -31,15 +34,15 @@ def HotGas_Properties(dic, eps=None, forced=False):
 
 
     mu = [
-        cea.get_Chamber_Transport(Pc=Pc_psi, MR=OF)[1] / 0.671968975,
-        cea.get_Throat_Transport(Pc=Pc_psi, MR=OF)[1] / 0.671968975,
-        cea.get_Exit_Transport(Pc=Pc_psi, MR=OF)[1] / 0.671968975,
+        cea.get_Chamber_Transport(Pc=Pc_psi, MR=OF)[1] * 1e-4,
+        cea.get_Throat_Transport(Pc=Pc_psi, MR=OF)[1] * 1e-4,
+        cea.get_Exit_Transport(Pc=Pc_psi, MR=OF)[1] * 1e-4,
     ]
 
     k = [
-        cea.get_Chamber_Transport(Pc=Pc_psi, MR=OF)[2] / 0.000481055,
-        cea.get_Throat_Transport(Pc=Pc_psi, MR=OF)[2] / 0.000481055,
-        cea.get_Exit_Transport(Pc=Pc_psi, MR=OF)[2] / 0.000481055,
+        cea.get_Chamber_Transport(Pc=Pc_psi, MR=OF)[2] * 0.4184,
+        cea.get_Throat_Transport(Pc=Pc_psi, MR=OF)[2] * 0.4184,
+        cea.get_Exit_Transport(Pc=Pc_psi, MR=OF)[2] * 0.4184,
     ]
     Pr = [
         cea.get_Chamber_Transport(Pc=Pc_psi, MR=OF)[3],

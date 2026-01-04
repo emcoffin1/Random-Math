@@ -14,6 +14,7 @@ def plot_engine(x, y, type="2D"):
         ax.plot(x, -y, color="b")
 
         # Force pyplot-like autoscaling
+        ax.set_aspect('equal', adjustable='box')
         ax.autoscale()
         plt.tight_layout()
 

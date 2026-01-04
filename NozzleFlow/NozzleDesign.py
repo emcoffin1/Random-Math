@@ -10,9 +10,9 @@ from GasProperties import HotGas_Properties
 
 
 def throat_radius(flow: dict):
-    mdot, Pc, gamma, R, T = flow["E"]["mdot"], flow["E"]["Pc"], flow["H"]["gamma"], flow["H"]["R"], flow["E"]["Tc"]
-    throat_A = mdot / (Pc * np.sqrt(gamma/(R*T)) * (2/(gamma+1))**((gamma+1)/(2 * (gamma-1))))
-    Rt = np.sqrt(throat_A / np.pi)
+    mdot, Pc, gamma, R, Tc = flow["E"]["mdot"], flow["E"]["Pc"], flow["H"]["gamma"], flow["H"]["R"], flow["E"]["Tc"]
+    At = (mdot / Pc) * np.sqrt(R * Tc / gamma) * ((gamma + 1) / 2) ** ((gamma + 1) / (2 * (gamma - 1)))
+    Rt = np.sqrt(At / np.pi)
     return Rt
 
 
@@ -158,15 +158,23 @@ def area_conversion(y):
 
 
 def chamber_contraction(x, y, info: dict, Lc=0.05):
+    """
+    Chamber geometry derived from page 73 and 74 of H&H
+    """
+
+    theta = np.radians(30)
+
     y_conv = np.min(y)
     Rt = y_conv
+    A_t = np.pi * Rt**2
     CR = info["E"]["CR"]
     r_c = Rt * np.sqrt(CR)
+    A_c = Rt * CR
 
     f = info["F"]["Type"]
     o = info["O"]["Type"]
     if f == "RP-1" and o == "LOX":
-        Lstar = 1.1
+        Lstar = 1.143   # 45 in
 
     else:
         Lstar = 1.0
@@ -174,13 +182,17 @@ def chamber_contraction(x, y, info: dict, Lc=0.05):
 
     info["E"]["Lstar"] = Lstar
 
+
     # CR is the ratio of chamber area to throat area
     # Chamber length is essentially L* Ac / At
-    Lch = Lstar / CR
-    info["E"]["Lc"] = Lch
+    V_c = Lstar * A_t
+    L_c = ( (V_c / A_t) - 1/3*np.sqrt(A_t/np.pi) / np.tan(theta) * (CR**(1/3) - 1)) / CR
+
+    info["E"]["Lc"] = L_c
+    info["E"]["Ac"] = A_c
     x0 = x[0]
 
-    x_ch = np.linspace(x0 - Lch, x0-Lc, 50)
+    x_ch = np.linspace(x0 - L_c, x0-Lc, 50)
     y_ch = np.full_like(x_ch, r_c)
 
     x_con = np.linspace(x0-Lc, x0, 50)
@@ -202,6 +214,7 @@ def build_nozzle(data: dict, chamber=True):
     # Expansion ratio
     data["E"]["eps"] = area_ratio_from_M(Me, gamma=data["H"]["gamma"])
     data["E"]["Rt"] = throat_radius(flow=data)
+    print(data["H"]["gamma"])
     # Recompute just incase expansion ratio really changes something
 
     Pe, Pc, T, size, mdot, Rt, gamma, R, plots, eps = (

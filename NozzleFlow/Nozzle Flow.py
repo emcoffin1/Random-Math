@@ -57,6 +57,7 @@ def engine_analysis(flow: dict):
 def main_basic(data: dict, nozzle_build: bool = True, display=True):
     frmt                = "{:<50} {:<10.3f} {:<10} {:<}"
     frmt2               = "{:<50} {:<10} {:<10} {:<}"
+    frmte               = "{:<50} {:<10.3e} {:<10} {:<}"
 
     if nozzle_build:
         # Build nozzle
@@ -164,7 +165,7 @@ def main_basic(data: dict, nozzle_build: bool = True, display=True):
         print(frmt.format("Exit Velocity", exit_vel, "m/s", "|"))
         print(frmt.format("Exit Diameter", y[-1] * 2, "m", "|"))
         print(frmt.format("Total Force @ SL", exit_vel * mdot / 1e3, "kN", "|"))
-        print(frmt.format("Total Engine Length", x[-1], "m", "|"))
+        print(frmt.format("Total Engine Length", x[-1] - x[0], "m", "|"))
         print(frmt.format("Mass Flow Rate", mdot_isen, "kg/s", "|"))
         print(frmt.format("Expansion Ratio", np.max(eps), "kg/s", "|"))
         print(frmt.format("Chamber Radius", data["E"]["y"][-1]*1000, "mm", "|"))
@@ -208,14 +209,14 @@ def main_basic(data: dict, nozzle_build: bool = True, display=True):
         print(frmt.format("Ox Flow Rate", of * mdot / (of + 1), "kg/s", "|"))
         k_gas               = data["H"]["k"]
         print(frmt2.format("Thermal Conductivity", "", "", "|"))
-        print(frmt.format(" ", int(k_gas[0]), "W/(m-K)", "|"))
+        print(frmt.format(" ", k_gas[0], "W/(m-K)", "|"))
         print(frmt.format(" ", k_gas[1], "W/(m-K)", "|"))
         print(frmt.format(" ", k_gas[2], "W/(m-K)", "|"))
         mu                  = data["H"]["mu"]
         print(frmt2.format("Dynamic Viscosity", "", "", "|"))
-        print(frmt.format("", mu[0], "Pa-s", "|"))
-        print(frmt.format("", mu[1], "Pa-s", "|"))
-        print(frmt.format("", mu[2], "Pa-s", "|"))
+        print(frmte.format("", mu[0], "Pa-s", "|"))
+        print(frmte.format("", mu[1], "Pa-s", "|"))
+        print(frmte.format("", mu[2], "Pa-s", "|"))
         Pr                  = data["H"]["Pr"]
         print(frmt2.format("Prandtl Number", "", "", "|"))
         print(frmt.format("", Pr[0], "", "|"))
@@ -289,16 +290,16 @@ if __name__ == '__main__':
     # == ENGINE INFO == #
 
     info = {"CEA": True,
-            "plots": "no",
+            "plots": "2D",
             "dimensions": 1,    # Complexity of heat transfer
             "E": {
-                "Pc": 3e6,  # Chamber Pressure [Pa]
+                "Pc": 6.013e6,  # Chamber Pressure [Pa]
                 "Pe": 101325,  # Ambient Pressure (exit) [Pa]
-                "Tc": 3500,  # Chamber temp [K]
-                "mdot": 0.73,  # Mass Flow Rate [kg/s]
-                "OF": 2.25,
+                "Tc": 3600,  # Chamber temp [K]
+                "mdot": 1.89,  # Mass Flow Rate [kg/s]
+                "OF": 1.8,
                 "size": 1.0,
-                "CR": 8,
+                "CR": 7,
                 "Lc": None,
                 "x": None,
                 "y": None,
@@ -313,6 +314,7 @@ if __name__ == '__main__':
                 "cp": None,
                 "cstar": None,
                 "MW": None,
+                "R": None,
             },
             "F": {
                 "Type": "RP-1",
@@ -378,9 +380,9 @@ if __name__ == '__main__':
     #
     # # print(f"run 1: {info}")
     # == RUN ME == #
-    # main_basic(data=info, nozzle_build=True)
+    main_basic(data=info, nozzle_build=True)
     # Startup_Analysis(data=info)
-    First_Modal_Analysis(data=info)
+    # First_Modal_Analysis(data=info)
 
 
     # l = np.linspace(0.01,0.5, 50)
