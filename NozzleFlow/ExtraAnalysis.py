@@ -122,7 +122,7 @@ def First_Modal_Analysis(data: dict):
     eps[:ind]           *= -1
     isentropic_nozzle_flow(eps=eps, data=data)
 
-    T_c_static = data["Flow"]["T"][-1]
+    T_c_static = data["Flow"]["T"][0]
     d_c = data["E"]["y"][0] * 2
     gamma_type = type(data["H"]["gamma"])
     R_c = data["H"]["R"]
@@ -140,10 +140,12 @@ def First_Modal_Analysis(data: dict):
     f_long = a_chamber / (2 * L_c)
     f_tang = 0.59 * a_chamber / (d_c)
     f_radi = 1.22 * a_chamber / d_c
-    print(frmt2.format(f"First Modal Frequencies", "", "", "|"))
-    print(frmt.format("     Longitudinal", f_long, "Hz", "|"))
-    print(frmt.format("     Tangential", f_tang, "Hz", "|"))
-    print(frmt.format("     Radial", f_radi, "Hz", "|"))
+
+    print("=" * 72, f"{'|':<}")
+    print(f"{'First Modal Frequencies':^70} {'|':>3}")
+    print(frmt.format("Longitudinal", f_long, "Hz", "|"))
+    print(frmt.format("Tangential", f_tang, "Hz", "|"))
+    print(frmt.format("Radial", f_radi, "Hz", "|"))
 
     # ======================= #
     # == INJECTOR ANALYSIS == #
@@ -159,7 +161,9 @@ def First_Modal_Analysis(data: dict):
     # Injector delay phase check
     tau_eff = data["Injector"]["tau_eff"]
 
-    print(frmt2.format("Injector Delay Phase Check", "", "", "|"))
+
+    print("=" * 72, f"{'|':<}")
+    print(f"{'Injector Delay Phase Check':^70} {'|':>3}")
     if tau_eff is not None:
         phi_long = 2 * np.pi * f_long * tau_eff
         phi_tang = 2 * np.pi * f_tang * tau_eff
@@ -178,7 +182,9 @@ def First_Modal_Analysis(data: dict):
     # Speed of fluid assumed to be speed of sound of the fluid
     L_line_fuel = data["Injector"]["L_fuel"]
     L_line_ox = data["Injector"]["L_ox"]
-    print(frmt2.format("Feed System Acoustic Resonance", "", "", "|"))
+
+    print("=" * 72, f"{'|':<}")
+    print(f"{'Feed System Acoustic Resonance':^70} {'|':>3}")
 
     if L_line_ox is not None and L_line_fuel is not None:
         gamma_fuel = data["F"]["gamma"]
@@ -195,8 +201,9 @@ def First_Modal_Analysis(data: dict):
         f_feed_fuel = c_feed_fuel / (4 * L_line_fuel)
         f_feed_ox = c_feed_ox / (4 * L_line_ox)
 
-        if np.isclose(f_long, f_feed_fuel):
-            print(frmt2.format("Fuel Feed back is similar resonance!", "", "", "|"))
+        fuel_percent = np.abs(f_feed_fuel - f_long) / f_long
+        if fuel_percent < 0.15:
+            print(frmt.format("Fuel Feed back is similar resonance!", fuel_percent*100, "%", "|"))
             print(frmt.format("     Fuel", f_feed_fuel, "Hz", "|"))
             print(frmt.format("     Longitudinal", f_long, "Hz", "|"))
             print(frmt2.format("     Recommended to change oxidizer line length!", "", "", "|"))
@@ -205,8 +212,9 @@ def First_Modal_Analysis(data: dict):
             print(frmt.format("     Fuel", f_feed_fuel, "Hz", "|"))
             print(frmt.format("     Longitudinal", f_long, "Hz", "|"))
 
-        if np.isclose(f_long, f_feed_ox):
-            print(frmt2.format("Fuel Feed back is similar resonance!", "", "", "|"))
+        ox_percent = np.abs(f_feed_ox - f_long) / f_long
+        if ox_percent < 0.15:
+            print(frmt.format("Fuel Feed back is similar resonance!", ox_percent*100, "%", "|"))
             print(frmt.format("     Ox", f_feed_ox, "Hz", "|"))
             print(frmt.format("     Longitudinal", f_long, "Hz", "|"))
             print(frmt2.format("     Recommended to change oxidizer line length!", "", "", "|"))
@@ -224,7 +232,15 @@ def First_Modal_Analysis(data: dict):
     A_V_L_tang = (f_tang * 2 * np.pi / a_chamber)**2
     A_V_L_radi = (f_radi * 2 * np.pi / a_chamber)**2
 
-    print(frmt2.format("Helmoltz Resonator Chamber Dimension Constant", "", "" ,"|"))
+    print("=" * 72, f"{'|':<}")
+    print(f"{'Helmholtz Resonator Chamber Dimension Constant':^70} {'|':>3}")
+    print(frmt2.format("Given is AV/L for the resonator", "", "", "|"))
+    print(frmt2.format("Not necessary unless above results are un-fixable", "", "", "|"))
+    print(frmt.format("     Longitudinal", A_V_L_long, "", "|"))
+    print(frmt.format("     Tangential", A_V_L_tang, "", "|"))
+    print(frmt.format("     Radial", A_V_L_radi, "", "|"))
+
+
 
 
     return f_long, f_tang, f_radi
