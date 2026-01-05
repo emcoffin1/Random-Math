@@ -107,7 +107,7 @@ def main_basic(data: dict, nozzle_build: bool = True, display=True):
     # == END == #
 
     # == HEAT TRANSFER == #
-    analyze             = False
+    analyze             = True
     dims                = data["dimensions"]
     if dims == 0:
         q: dict         = bartz_heat_transfer_const(info=data)
@@ -131,7 +131,7 @@ def main_basic(data: dict, nozzle_build: bool = True, display=True):
                                (q["R_hg_w"], q["R_w_w"], q["R_w_c"]),
                                q["Q_dot"],
                                q["Re"],
-                               q["Dh"]
+                               q["T_cool"]
                                ]
 
             names1          = ["Heat Transfer Coefficients",
@@ -139,7 +139,7 @@ def main_basic(data: dict, nozzle_build: bool = True, display=True):
                                "Wall Resistances",
                                "Q_dot",
                                "Reynolds",
-                               "Dh"
+                               "Coolant Temp"
                                ]
 
             subnames1       = [("Gas-Wall", "Wall-Coolant"),
@@ -232,9 +232,9 @@ def main_basic(data: dict, nozzle_build: bool = True, display=True):
             print(frmt.format("Maximum Wall Temp", max_wall_temp, "K", "|"))
             print(frmt.format("at ... from throat", max_wall_temp_x*1000, "mm", "|"))
             print(frmt.format("Maximum Coolant Temp", np.max(q["T_cool"]), "K", "|"))
-            if np.max(q["T_cool"]) == data["F"]["T_max"]:
-                print(frmt2.format("The coolant exceeded the thermally stable temperature region", "","","|"))
-                print(frmt.format("The coolant was therefor clamped to", data["F"]["T_max"], "K", "|"))
+            # if np.max(q["T_cool"]) == data["F"]["T_max"]:
+            #     print(frmt2.format("The coolant exceeded the thermally stable temperature region", "","","|"))
+            #     print(frmt.format("The coolant was therefor clamped to", data["F"]["T_max"], "K", "|"))
             print(frmt.format("Average Heat Transfer Coefficient (hot gas)", np.mean(q["h_hg"])/1000, "kW/m^2-K", "|"))
             print(frmt.format("Maximum Heat Transfer Coefficient (hot gas)", max(q["h_hg"])/1000, "kW/m^2-K", "|"))
             print(frmt.format("Maximum Heat Transfer Coefficient (wall->coolant", max(q["h_wc"])/1000, "kW/m^2-K", "|"))
@@ -290,7 +290,7 @@ if __name__ == '__main__':
     # == ENGINE INFO == #
 
     info = {"CEA": True,
-            "plots": "2D",
+            "plots": "no",
             "dimensions": 1,    # Complexity of heat transfer
             "E": {
                 "Pc": 6.013e6,  # Chamber Pressure [Pa]
@@ -347,7 +347,7 @@ if __name__ == '__main__':
                 # "Type": "Tungsten",
                 # "Type": "Copper Chromium",
                 "Type": "Inconel 718",
-                "thickness": 0.02
+                "thickness": 0.005
             },
             "C": {
                 "Type": "Square",
@@ -383,6 +383,7 @@ if __name__ == '__main__':
     main_basic(data=info, nozzle_build=True)
     # Startup_Analysis(data=info)
     # First_Modal_Analysis(data=info)
+    # CoolantSizingGuide(data=info)
 
 
     # l = np.linspace(0.01,0.5, 50)

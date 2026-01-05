@@ -2,6 +2,7 @@ from rocketcea.cea_obj import CEA_Obj
 from scipy.interpolate import PchipInterpolator
 from CoolProp.CoolProp import PropsSI
 import numpy as np
+from rocketprops.rocket_prop import get_prop
 
 def HotGas_Properties(dic, eps=None, forced=False):
     """Passes in metric but is converted to SI. RocketCEA returns SI and is then converted to metric"""
@@ -119,30 +120,39 @@ def Fluid_Properties(dic: dict, coolant_only=False):
             T_f = 510
 
         if fluid == "RP-1":
-            R = 49  # J/kg/k
-            """https://rocketprops.readthedocs.io/en/latest/rp1_prop.html"""
-            rho = 810.0 - 0.75 * (T_f - 288.15)                 # kg/m^3
-            a0 = 9.06668
-            a1 = -4.45988
-            a2 = 164.814
+            # R = 49  # J/kg/k
+            # """https://rocketprops.readthedocs.io/en/latest/rp1_prop.html"""
+            # rho = 810.0 - 0.75 * (T_f - 288.15)                 # kg/m^3
+            # a0 = 9.06668
+            # a1 = -4.45988
+            # a2 = 164.814
             T_R = 1.8 * T_f
-            mu = 10**a0 * T_R**a1 * 10**(a2/T_R)
+            # mu = 10**a0 * T_R**a1 * 10**(a2/T_R)
+            #
+            # cp = (1.88192787e-05)*T_f**3 - (2.30240993e-02)*T_f**2 + (1.32103092e+01)*T_f - 3.12233222e+02
+            # k_btu = (-3.417e-11)*T_R**3 + (1.147e-7)*T_R**2 - (1.512e-4)*T_R + 1.183e-1
+            # k = 1.730735 * k_btu
+            # Pr = cp * mu / k
+            #
+            # gamma = 1.24 # (assumed)
+            #
+            # if not (1e-4 < mu < 5e-3):
+            #
+            #     print(f"mu exceeds realistic value, clamping...")
+            #     T_R = 500*1.8
+            #     mu = 10**a0 * T_R**a1 * 10**(a2/T_R)
+            #
+            #
+            # dic[i]["T_max"] = 510
 
-            cp = (1.88192787e-05)*T_f**3 - (2.30240993e-02)*T_f**2 + (1.32103092e+01)*T_f - 3.12233222e+02
-            k_btu = (-3.417e-11)*T_R**3 + (1.147e-7)*T_R**2 - (1.512e-4)*T_R + 1.183e-1
-            k = 1.730735 * k_btu
+            pObj = get_prop("RP1")
+            cp = pObj.CpAtTdegR(T_R) * 4186
+            k = pObj.CondAtTdegR(T_R) * 1.730735
+            mu = pObj.ViscAtTdegR(T_R) * 0.1
+            rho = 999.016 * pObj.SGLiqAtTdegR(T_R)
             Pr = cp * mu / k
-
-            gamma = 1.24 # (assumed)
-
-            if not (1e-4 < mu < 5e-3):
-
-                print(f"mu exceeds realistic value, clamping...")
-                T_R = 500*1.8
-                mu = 10**a0 * T_R**a1 * 10**(a2/T_R)
-
-
-            dic[i]["T_max"] = 510
+            R = None
+            gamma = None
 
 
 

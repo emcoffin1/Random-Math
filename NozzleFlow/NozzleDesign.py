@@ -214,37 +214,52 @@ def build_nozzle(data: dict, chamber=True):
     # Expansion ratio
     data["E"]["eps"] = area_ratio_from_M(Me, gamma=data["H"]["gamma"])
     data["E"]["Rt"] = throat_radius(flow=data)
-    print(data["H"]["gamma"])
-    # Recompute just incase expansion ratio really changes something
 
     Pe, Pc, T, size, mdot, Rt, gamma, R, plots, eps = (
         data["E"]["Pe"], data["E"]["Pc"], data["E"]["Tc"], data["E"]["size"], data["E"]["mdot"], data["E"]["Rt"], data["H"]["gamma"],
         data["H"]["R"], data["plots"], data["E"]["eps"]
     )
 
-    # print(f"run 2: {data}")
     # Engine Structure/shape
     L, n, e = get_angles(Rt, eps, bell_percent=size)
     points = point_selection(Rt, eps, n, e, bell_percent=size)
 
     xq, yq = quadratic_curve(points)
     xe, ye = exit_section(Rt, n)
+    xen, yen = entry_section(Rt)
+
+    # if not chamber:
+    #     xen, yen = entry_section(Rt)
+    #     # Build out full line
+    #     x = np.concatenate((xen[::-1], xe, xq))
+    #     y = np.concatenate((yen[::-1], ye, yq))
+    #
+    # else:
+    #
+    #     x = np.concatenate((xe, xq))
+    #     y = np.concatenate((ye, yq))
+    #
+    #     x_ch, y_ch, x_con, y_con = chamber_contraction(x=xe, y=ye, info=data)
+    #
+    #     x = np.concatenate((x_ch, x_con[:-1], x))
+    #     y = np.concatenate((y_ch, y_con[:-1], y))
 
     if not chamber:
-        xen, yen = entry_section(Rt)
-        # Build out full line
-        x = np.concatenate((xen[::-1], xe, xq))
-        y = np.concatenate((yen[::-1], ye, yq))
+        x_ch = np.zeros(5)
+        x_con = np.zeros(5)
+        y_ch = np.zeros(5)
+        y_con = np.zeros(5)
 
     else:
-
-        x = np.concatenate((xe, xq))
-        y = np.concatenate((ye, yq))
-
         x_ch, y_ch, x_con, y_con = chamber_contraction(x=xe, y=ye, info=data)
 
-        x = np.concatenate((x_ch, x_con[:-1], x))
-        y = np.concatenate((y_ch, y_con[:-1], y))
+    # Full use of Rao Bell
+    x = np.concatenate((x_ch, xen[:-1], xe, xq))
+    y = np.concatenate((y_ch, yen[:-1], ye, yq))
+
+    # Partial Rao Bell partial smooth curve
+    # x = np.concatenate((x_ch, x_con[:-1], xe, xq))
+    # y = np.concatenate((y_ch, y_con[:-1], ye, yq))
 
 
     # sort_idx = np.argsort(x)
@@ -259,12 +274,17 @@ def build_nozzle(data: dict, chamber=True):
     a = area_conversion(y)
     r_throat = np.min(y)
 
+    if round(r_throat,4) != round(Rt,4):
+        raise ValueError(f"The throat radii do not match Rt: {Rt:.4f} -- r_throat:{r_throat:.4f}")
+
     a_t = min(a)
     data["E"]["aspect_ratio"] = a / a_t
     data["E"]["x"] = x
     data["E"]["y"] = y
     data["E"]["a"] = a
-    data["E"]["r_throat"] = r_throat
+    data["E"]["r_throat"] = Rt
+    data["E"]["r_exit"] = 0.382 * Rt
+    data["E"]["r_entry"] = 1.5 * Rt
 
     if np.any(data["E"]["aspect_ratio"] <= 0):
         raise ValueError("There is a negative value in the aspect ratio. FOUND IN DESIGN")

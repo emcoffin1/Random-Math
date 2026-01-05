@@ -7,6 +7,9 @@ from MachSolver import isentropic_nozzle_flow
 from GasProperties import HotGas_Properties
 import copy
 
+from NozzleFlow.GasProperties import Fluid_Properties
+
+
 def separation_location(data:dict, c_sep: float=0.4):
     Pa = data["E"]["Pe"]
     P = data["Flow"]["P"]
@@ -246,8 +249,7 @@ def First_Modal_Analysis(data: dict):
     return f_long, f_tang, f_radi
 
 
-
-def Startup_Analysis(data:dict):
+def Startup_Analysis(data: dict):
 
     x = data["E"]["x"]
     if x is None:
@@ -393,6 +395,66 @@ def Startup_Analysis(data:dict):
 
     plt.plot(x, isen_flows[index]["E"]["stress"])
     plt.show()
+
+
+def CoolantSizingGuide(data: dict, fos_temp: float = 0.95, deposit_hg: float = 0, coolant_bulk_temp: float = 335):
+    """
+    Drives the requirements for a properly cooled engine relying ONLY on regenerative cooling
+    Derived from chapter 4 of H&H and specifically problem 4
+    :param data: standard dictionary of info
+    :param fos_temp: percentage of wall max temperature (0-1.0)
+    :param deposit_hg: heat transfer coefficient of the coking (typically 3.82e-4 for throat), remove for ideal
+    :param coolant_bulk_temp: coolant bulk temperature at throat
+    """
+
+    x = data["E"]["x"]
+    if x is None:
+        x, y, a = build_nozzle(data=data)
+
+    max_wall_temp = data["W"]["solidus"] * fos_temp
+
+    Pc = data["E"]["Pc"]
+    gamma = data["H"]["gamma"]
+    R = data["H"]["R"]
+    Tc = data["E"]["Tc"]
+    cstar_idl = np.sqrt(gamma*Tc*R) / (gamma*(2/(gamma+1))**((gamma+1)/(2*(gamma-1))))
+    cstar_act = data["H"]["cstar"]
+    correction_factor = cstar_act / cstar_idl
+    Tc_adjusted = Tc * correction_factor**2
+    cp = gamma*R / (gamma-1)
+    mu = data["H"]["mu"][1]
+    Pr = 4*gamma / (9*gamma - 5)
+    mean_throat_radius = (data["E"]["r_exit"] + data["E"]["r_entry"]) / 2
+    Dt = data["E"]["r_throat"]*2
+
+    # Gas side heat flux using Bartz correlation
+    # Only concerned with throat as this is the highest heat flux
+    # Therefor all corrections and area corrections become 1.0
+    h_hg = (0.026/Dt**0.2) * (mu**0.2*cp/Pr**0.6) * (Pc/cstar_act)**0.8 * (Dt/mean_throat_radius)**0.1
+    h_hg = 1 / (1/h_hg + deposit_hg)
+
+    # Required heat flux
+    q_req = (Tc_adjusted - max_wall_temp) * h_hg
+
+    # Wall properties
+    t_wall = data["W"]["thickness"]
+    k_wall = data["W"]["k"]
+    T_wall_coolant = max_wall_temp - (q_req * t_wall / k_wall)
+
+    # Coolant midpoint bulk temp
+    # Coolant temp around throat region
+    h_coolant = q_req / (T_wall_coolant - coolant_bulk_temp)
+    cool_orig = data["F"]["T"]
+    data["F"]["T"] = T_wall_coolant
+    Fluid_Properties(dic=data, coolant_only=True)
+    mu_wall_coolant = data["F"]["mu"]
+
+    data["F"]["T"] = coolant_bulk_temp
+    Fluid_Properties(dic=data, coolant_only=True)
+    mu_bulk_coolant = data["F"]["mu"]
+
+    data["F"]["T"] = cool_orig
+    mdot = data["F"]["mdot"]
 
 
 
