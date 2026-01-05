@@ -454,8 +454,13 @@ def CoolantSizingGuide(data: dict, fos_temp: float = 0.95, deposit_hg: float = 0
     mu_bulk_coolant = data["F"]["mu"]
 
     data["F"]["T"] = cool_orig
-    mdot = data["F"]["mdot"]
 
+
+    # Velocity function
+    mdot = data["F"]["mdot"]
+    rho = data["F"]["rho"]
+
+    v_func = mdot/rho
 
 
 
