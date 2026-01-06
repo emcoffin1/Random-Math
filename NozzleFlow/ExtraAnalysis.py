@@ -555,6 +555,8 @@ def CoolantSizingGuide(data: dict, fos_temp: float = 0.95, deposit_hg: float = 0
             print(frmt.format("Inner Diameter", d_inner*1000, "mm", "|"))
             print(frmt.format("Outer Diameter", d_outer*1000, "mm", "|"))
             print(frmt.format("Wall Thickness", t_wall_coolant*1000, "mm", "|"))
+            print(frmt.format("Mass Flow Per Channel", data["F"]["mdot"] / data["C"]["num_ch"] * 1000, "g/s", "|"))
+            print(frmt.format("Coolant Bulk Temp", coolant_bulk_temp, "K", "|"))
 
     elif geom == "square":
         N = np.pi * (Dt + 2*t_wall + d_inner) / (2*d_inner)
@@ -562,13 +564,32 @@ def CoolantSizingGuide(data: dict, fos_temp: float = 0.95, deposit_hg: float = 0
         d = np.pi * (Dt + 2*t_wall) / (2*N - np.pi)
         data["C"]["spacing"] = d
         data["C"]["height"] = d
+        data["C"]["depth"] = d
         data["C"]["num_ch"] = N
         data["C"]["throat_bulk_temp"] = coolant_bulk_temp
         if display:
             print(frmt.format("Number of Channels", N, "", "|"))
             print(frmt.format("Edge Length", d*1000, "mm", "|"))
+            print(frmt.format("Edge Depth", d*1000, "mm", "|"))
             print(frmt.format("Fin Thickness", d*1000, "mm", "|"))
             print(frmt.format("Wall Thickness", t_wall*1000, "mm", "|"))
+            print(frmt.format("Mass Flow Per Channel", data["F"]["mdot"] / data["C"]["num_ch"] * 1000, "g/s", "|"))
+            print(frmt.format("Coolant Bulk Temp", coolant_bulk_temp, "K", "|"))
+
+def non_throat_cooling_geom(data: dict):
+    # The goal of this is to keep the area and fin thickness constant at each step
+    # These values are going to stay constant
+    N = data["C"]["num_ch"]
+    t_f = data["C"]["spacing"]
+    A = data["C"]["height"] * data["C"]["depth"]
+    D = data["E"]["y"] * 2
+
+    w = (np.pi * D / N) - t_f
+    d = A / w
+
+    data["C"]["depth_arr"] = d
+    data["C"]["width_arr"] = w
+
 
 
 

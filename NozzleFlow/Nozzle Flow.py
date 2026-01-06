@@ -1,3 +1,5 @@
+from copy import deepcopy
+
 from GeometryDesign import *
 from HeatTransfer.bartz_formulas import bartz_heat_transfer_const, bartz_heat_transfer_1d
 from MachSolver import isentropic_nozzle_flow
@@ -30,57 +32,25 @@ def throat_radius(flow: dict):
     return Rt
 
 
-def iterate_cooling_design(data:dict, tol=0.5, iter=50, alpha=0.2):
-    Tb = 350
+def iterate_cooling_design(q: dict, data: dict, tol=0.05, iter=50, alpha=0.2):
+
     x = data["E"]["x"]
+    Tb = data_at_point(A=x, B=q["T_cool"], value=0)
 
     for _ in range(iter):
 
+        data["F"]["T"] = 298
+        Fluid_Properties(dic=data, coolant_only=True)
+
         CoolantSizingGuide(data=data, coolant_bulk_temp=Tb, display=False)
         q = bartz_heat_transfer_1d(info=data)
+        Tb1 = data_at_point(A=x, B=q["T_cool"], value=0)
 
-        Tb_new = data_at_point(A=x, B=q["T_cool"], value=0)
-
-        residual = Tb_new - Tb
-
-
-
-
-def iterate_cooling_design2(data: dict, tol=1e-4, iter=50, relax=0.35):
-    """Only iterates for the true bulk temperature of the coolant at the throat"""
-    # Calculated from previous step
-    def residual(Tb, data):
-        print(f"Trying Tb: {Tb:.2f}")
-        CoolantSizingGuide(data=data, coolant_bulk_temp=Tb, display=False)
-        data["q"] = bartz_heat_transfer_1d(info=data)
-        Tb_new = data_at_point(A=data["E"]["x"], B=data["q"]["T_cool"], value=0)
-        return Tb_new - Tb
-    Tb0 = 350
-    Tb1 = data_at_point(A=data["E"]["x"], B=data["q"]["T_cool"], value=0)
-
-
-    r0 = residual(Tb0, data)
-    r1 = residual(Tb1, data)
-    for i in range(iter):
-        # Feed that back in
-
-        if abs(r1-r0) < 1e-12:
-            print("diving by 0")
-            break
-
-        # Secant update
-        Tb2 = Tb1 - r1 * (Tb1 - Tb0) / (r1 - r0)
-
-        r2 = residual(Tb2, data)
-        if abs(r2) < tol:
-            CoolantSizingGuide(data=data, coolant_bulk_temp=Tb2, display=True)
-            q = bartz_heat_transfer_1d(info=data)
+        if np.abs(Tb1 - Tb) < tol:
+            CoolantSizingGuide(data=data, coolant_bulk_temp=Tb, display=True)
             return q
 
-        Tb0, r0 = Tb1, r1
-        Tb1, r1 = Tb2, r1
-
-    raise RuntimeError("Cooling design failed to converge! IDK whats wrong")
+        Tb = Tb1
 
 
 def main_basic(data: dict, nozzle_build: bool = True, display=True):
@@ -97,17 +67,8 @@ def main_basic(data: dict, nozzle_build: bool = True, display=True):
             CoolantSizingGuide(data=data, display=False, coolant_bulk_temp=350)
         else:
             CoolantSizingGuide(data=data, display=True)
-        # cooling_geometry(dic=info)
 
-        # data["E"]["Pc"] = 6e6
-        #
-        # if info["CEA"]:
-        #     # Run rocketcea
-        #     HotGas_Properties(Pc=info["E"]["Pc"], fuel=info["F"]["Type"], ox=info["O"]["Type"], OF=info["E"]["OF"],
-        #                       dic=info)
-        #     Fluid_Properties(dic=info)
-        #     Material_Properties(dic=info)
-
+        non_throat_cooling_geom(data=data)
 
     else:
         x = 1
@@ -143,7 +104,10 @@ def main_basic(data: dict, nozzle_build: bool = True, display=True):
 
     # == END == #
 
+    # =================== #
     # == HEAT TRANSFER == #
+    # =================== #
+
     analyze             = True
     dims                = data["dimensions"]
     if dims == 0:
@@ -151,21 +115,30 @@ def main_basic(data: dict, nozzle_build: bool = True, display=True):
     elif dims == 1:
 
         q: dict         = bartz_heat_transfer_1d(info=data)
-        data["q"] = q
 
         if iterate_cooling:
-            iterate_cooling_design(data=data, tol=1e-4)
-            q = data["q"]
-        data["q"] = q
+            q           = iterate_cooling_design(q=q, data=data, tol=1e-4)
+
+        data["q"]       = q
+
+        # Generate complete cooling geometry
+        non_throat_cooling_geom(data=data)
 
     else:
         analyze         = False
-        q = dict()
+        q               = dict()
 
+    # =========================== #
+    # == Perform Wall Analysis == #
+    # =========================== #
+
+
+
+    # Not display used for external iterations
     if not display:
         return np.max(q["T_cool"]), np.max(q["T_wall_gas"]), np.max(data["W"]["yield_strength"]/(data["Flow"]["P"]*data["E"]["y"]/data["W"]["thickness"]))
     else:
-
+        # Analyze is used to view the heat transfer information
         if analyze:
             # Heat transfer plotting
             flows1          = [(q["h_hg"], q["h_wc"]),
@@ -195,11 +168,11 @@ def main_basic(data: dict, nozzle_build: bool = True, display=True):
             max_wall_temp_x = data_at_point(A=q["T_wall_gas"], B=x, value=np.max(q["T_wall_gas"]))
             max_wall_temp   = np.max(q["T_wall_gas"])
 
-        Lc = data["E"]["Lc"]
-        if Lc is None:
-            Lc = 0
+        Lc = data["E"]["Lc"] if data["E"]["Lc"] is not None else 0
 
-
+        # ============== #
+        # == PRINTING == #
+        # ============== #
         print("=" * 72, f"{'|':<}")
         print(f"{'ENGINE GEOMETRY':^70} {'|':>3}")
         print("- " * 36, f"{'|':<}")
@@ -215,15 +188,6 @@ def main_basic(data: dict, nozzle_build: bool = True, display=True):
         print(frmt.format("Engine Length", (x[-1] - x[0]), "m", "|"))
         print(frmt.format("Chamber Length", Lc*1000, "mm", "|"))
         print(frmt.format("Characteristic Velocity", data["H"]["cstar"], "m/s", "|"))
-
-        print("=" * 72, f"{'|':<}")
-        print(f"{'COOLING GEOMETRY':^70} {'|':>3}")
-        print("- " * 36, f"{'|':<}")
-
-        print(frmt.format("Number of Channels", data["C"]["num_ch"], "", "|"))
-        print(frmt.format("Spacing Between Channels", data["C"]["spacing"] * 1000, "mm", "|"))
-        print(frmt.format("Channel Height", data["C"]["height"] * 1000, "mm", "|"))
-        print(frmt.format("Mass Flow Per Channel", data["F"]["mdot"]/data["C"]["num_ch"]*1000, "g/s", "|"))
 
         print("="*72,f"{'|':<}")
         print(f"{'GAS CONDITIONS':^70} {'|':>3}")
@@ -278,6 +242,7 @@ def main_basic(data: dict, nozzle_build: bool = True, display=True):
             print(frmt.format("Maximum Wall Temp", max_wall_temp, "K", "|"))
             print(frmt.format("at ... from throat", max_wall_temp_x*1000, "mm", "|"))
             print(frmt.format("Maximum Coolant Temp", np.max(q["T_cool"]), "K", "|"))
+            print(frmt.format("Coolant Temp at Throat", data_at_point(A=data["E"]["x"], B=q["T_cool"], value=0), "K", "|"))
             # if np.max(q["T_cool"]) == data["F"]["T_max"]:
             #     print(frmt2.format("The coolant exceeded the thermally stable temperature region", "","","|"))
             #     print(frmt.format("The coolant was therefor clamped to", data["F"]["T_max"], "K", "|"))
@@ -286,7 +251,6 @@ def main_basic(data: dict, nozzle_build: bool = True, display=True):
             print(frmt.format("Maximum Heat Transfer Coefficient (wall->coolant", max(q["h_wc"])/1000, "kW/m^2-K", "|"))
             print(frmt.format("Average Heat Rate (Qdot)", np.mean(q["Q_dot"]), "W", "|"))
             print(frmt.format("Total Heat rate (Qdot)", sum(q["Q_dot"]), "W", "|"))
-            print(frmt.format("Coolant Temp at Throat", data_at_point(A=data["E"]["x"], B=q["T_cool"], value=0), "K", "|"))
 
             melting_point   = data["W"]["solidus"]
             if max_wall_temp > melting_point:
@@ -333,8 +297,6 @@ if __name__ == '__main__':
             lox values       : cp_l
             fuel values      : cp_f 
     """
-
-    # == ENGINE INFO == #
 
     info = {"CEA": True,
             "plots": "no",
@@ -409,6 +371,8 @@ if __name__ == '__main__':
                 "Nu": None,
                 "Re": None,
                 "wall_thickness": 0.00025,
+                "depth_arr": None,
+                "width_arr": None,
             },
             "Flow": {
                 "P": None,
@@ -423,6 +387,8 @@ if __name__ == '__main__':
 
 
             }
+    # == ENGINE INFO == #
+
 
     if info["CEA"]:
         # Run rocketcea

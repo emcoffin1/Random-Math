@@ -170,7 +170,7 @@ def bartz_heat_transfer_1d(info: dict, max_iteration=100, tol=1e-13):
 
             info["F"]["T"]   = float(T_guess)
 
-            h_coolant, Nu, Re, A_fs, n_fs, v, Dh, n_f = dittus_appro(dx=dx_i, dic=info, dimension=1, step=i)
+            h_coolant, Nu, Re, Dh, Ah, V, n_ef = dittus_appro(dx=dx_i, dic=info, dimension=1, step=i)
 
             info["C"]["h"][i]   = h_coolant
             info["C"]["Nu"][i]  = Nu
@@ -195,7 +195,7 @@ def bartz_heat_transfer_1d(info: dict, max_iteration=100, tol=1e-13):
             R_w_w               = np.log((y_i+t_w) / y_i) / (2 * np.pi * dx_i * k_w)
 
             # Wall to coolant
-            R_w_c               = 1 / (n_fs * A_fs * h_coolant)
+            R_w_c               = 1/ (h_coolant * Ah * n_ef)
 
             # Total resistance network
             R_total             = R_hg_w + R_w_w + R_w_c
@@ -215,15 +215,6 @@ def bartz_heat_transfer_1d(info: dict, max_iteration=100, tol=1e-13):
                 converge_count += 1
                 break
 
-            # if not (Taw[i] > T_wall_gas[i] > T_wall_coolant[i] > T_c[i]):
-            #     raise AssertionError(
-            #         f"\nThermal ordering violated at slice {i}\n"
-            #         f"Taw           = {Taw[i]:.2f} K\n"
-            #         f"T_wall_gas    = {T_wall_gas[i]:.2f} K\n"
-            #         f"T_wall_coolant= {T_wall_coolant[i]:.2f} K\n"
-            #         f"T_coolant     = {T_c[i]:.2f} K\n"
-            #         f"Check: Taw > Twg > Twc > Tc\n"
-            #     )
             T_guess             = T_coolant_avg
 
 
@@ -235,7 +226,7 @@ def bartz_heat_transfer_1d(info: dict, max_iteration=100, tol=1e-13):
         # Random fluid values
         h_wc[i] = h_coolant
         Re_arr[i] = Re
-        v_arr[i] = v
+        v_arr[i] = V
         Dh_arr[i] = Dh
 
         # Resistance Results
@@ -249,12 +240,6 @@ def bartz_heat_transfer_1d(info: dict, max_iteration=100, tol=1e-13):
         T_wall_coolant[i] = T_coolant_out + Q_i * R_w_c
         T_wall_gas[i] = T_wall_coolant[i] + Q_i * R_w_w
 
-        # Optional physical ordering check
-        # if not (Taw[i] > T_wall_gas[i] > T_wall_coolant[i] > T_c[i]):
-        #     raise RuntimeError(
-        #         f"Thermal ordering failed at i={i}: "
-        #         f"Taw={Taw[i]:.2f}, Twg={T_wall_gas[i]:.2f}, Twc={T_wall_coolant[i]:.2f}, Tc={T_c[i]:.2f}"
-        #     )
 
     Q_total = np.sum(Q_dot)
     dT_bulk = T_c_out[0] - T_c_out[-1]
@@ -383,7 +368,44 @@ def dittus_appro(dx:float, dic:dict, dimension: int, step: int):
 
     # Compute hydraulic diameter depending on shape type
     if type == "square":
+        chan_depth = dic["C"]["depth_arr"][i]
+        chan_width = dic["C"]["width_arr"][i]
+        A = chan_width * chan_depth
+        mdot_ch = mdot/num_ch
+
+        # GEOMETRY #
+        # Ph = 2 * (chan_depth + chan_width)
+        # # OR USE THIS
+        # Ph = chan_width
+        # # OR
+        Ph = chan_width + 2*chan_depth
+
+        Dh = 4 * A / Ph
+        A_cyl = 2 * np.pi * y * dx     # Area of cylinder now
+        n_ef = min(1.0, num_ch* Ph/(2 * np.pi * y))
+
+        # Velocity from mass flow rate equation
+        V = mdot_ch / (rho * A)
+
+        # Reynolds number using hydaulic diameter
+        Re = mdot_ch * Dh / (mu * A)
+
+        # Prandtl Number
+        Pr = cp * mu / k
+
+        # Nusselt
+        Nu = 0.023 * Re**0.8 * Pr**0.4
+
+        # Heat Transfer coefficient
+        h_f = Nu * k / Dh
+
+        return h_f, Nu, Re, Dh, A_cyl, V, n_ef
+
+
+    elif type == "Square":
+        a = dic["C"]["height"]
         Ah = np.pi / num_ch * (height**2 + 2*y*height + 2*thickness_w*height) - (spacing*height)
+        A = a**2
 
         # Local exposed fin area
         A_f = 2 * height * dx
