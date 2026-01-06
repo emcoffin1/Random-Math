@@ -1,5 +1,5 @@
 import numpy as np
-from NozzleFlow.GasProperties import Fluid_Properties
+from NozzleFlow.GasProperties import Fluid_Properties, HotGas_Properties
 
 """https://www.sciencedirect.com/science/article/pii/S2214157X25008834"""
 
@@ -78,6 +78,7 @@ def bartz_heat_transfer_1d(info: dict, max_iteration=100, tol=1e-13):
     # =========================== #
     # ==  Dictionary breakdown == #
     # =========================== #
+    HotGas_Properties(dic=info)
     """Engine and Hot gas information"""
     Tc                          = float(info["E"]["Tc"])
     gamma                       = info["H"]["gamma"]
@@ -258,7 +259,7 @@ def bartz_heat_transfer_1d(info: dict, max_iteration=100, tol=1e-13):
     Q_total = np.sum(Q_dot)
     dT_bulk = T_c_out[0] - T_c_out[-1]
     Q_from_bulk = mdot_f * cp_f * dT_bulk
-    print(f"\nConservations: {((Q_total - Q_from_bulk)/Q_from_bulk*100):.2f} %")
+    # print(f"\nConservations: {((Q_total - Q_from_bulk)/Q_from_bulk*100):.2f} %")
 
     dic = {"h_hg": h_hg,
            "h_wc": h_wc,
@@ -275,8 +276,9 @@ def bartz_heat_transfer_1d(info: dict, max_iteration=100, tol=1e-13):
            "Dh": Dh_arr,}
 
 
-    print("\nCooling solution complete.")
-    print(f"{(converge_count/N*100):.2f}% of slices converged")
+    print("\nCooling solution complete.", end="", flush=True)
+    print()
+    # print(f"{(converge_count/N*100):.2f}% of slices converged")
     return dic
 
 def bartz_approx(Taw, dic:dict, dimension: int, step: int, iteration: int):
@@ -318,32 +320,33 @@ def bartz_approx(Taw, dic:dict, dimension: int, step: int, iteration: int):
         return h_hg * sigma1 * sigma2
 
     else:
-        i = step
+        i  = step
         mu = dic["H"]["mu"][i]
-        cp = dic["H"]["cp"][i]
+        k  = dic["H"]["k"][i]
         gamma = dic["H"]["gamma"][i]
         Pr = dic["H"]["Pr"][1]
-        k = dic["H"]["k"][i]
-        T = dic["Flow"]["T"][i]
-        P = dic["Flow"]["P"][i]
-        R = dic["H"]["R"]
         Mi = M[i]
-        D = dic["E"]["y"][i] * 2
+        D  = dic["E"]["y"][i] * 2
+        R  = (dic["E"]["r_exit"] + dic["E"]["r_entry"]) / 2
 
-        a = np.sqrt(gamma * R * T)
-        v = Mi * a
-        rho = P / (R * T)
-        Re = rho * v * D / mu
+        A = np.pi / 4 * D**2
+        At = np.pi / 4 * Dt**2
+
+        G  = Pc/cstar
+        Re = G*D/mu
+
+        Nu = (0.026
+                * Re**0.8
+                * Pr**0.6
+                * (Dt/R)**0.1
+                * (At/A)**0.9)
 
         sigma1 = (0.5 * (Taw / Tc) * (1 + (gamma - 1) / 2 * Mi ** 2) + 0.5) ** -0.68
         sigma2 = (1 + (gamma - 1) / 2 * Mi ** 2) ** -0.12
-        sigma = sigma1 * sigma2
 
-        # h_hg = h_hg * sigma1 * sigma2
-        Nu = 0.026 * (Re**0.8) * (Pr**0.4) * (eps[i]**-0.9) * sigma
-        h = Nu * k / D
+        h_hg = Nu * k / D *sigma1 * sigma2
 
-        return h
+        return h_hg
 
 
 
@@ -371,7 +374,7 @@ def dittus_appro(dx:float, dic:dict, dimension: int, step: int):
     # Run the max number of channels if not already computed
     if dic["C"]["num_ch"] is not None:
         num_ch = dic["C"]["num_ch"]
-        type, thickness_w, spacing, height = (dic["C"]["Type"], dic["W"]["thickness"],
+        type, thickness_w, spacing, height = (dic["C"]["Type"].lower(), dic["W"]["thickness"],
                                                      dic["C"]["spacing"], dic["C"]["height"])
 
 
@@ -379,7 +382,7 @@ def dittus_appro(dx:float, dic:dict, dimension: int, step: int):
         raise ValueError(f"Number of channels is not defined")
 
     # Compute hydraulic diameter depending on shape type
-    if type == "Square":
+    if type == "square":
         Ah = np.pi / num_ch * (height**2 + 2*y*height + 2*thickness_w*height) - (spacing*height)
 
         # Local exposed fin area
@@ -441,7 +444,7 @@ def dittus_appro(dx:float, dic:dict, dimension: int, step: int):
         return h_f, Nu, Re, A_fs, n_fs, v, Dh, h_f
 
 
-    elif type == "Circle":
+    elif type == "circle":
         Dh = dic["C"]["width"]
         Ah = np.pi * (Dh/2)**2
 

@@ -8,6 +8,7 @@ from GasProperties import HotGas_Properties, Fluid_Properties, Material_Properti
 import matplotlib.pyplot as plt
 import copy
 from ExtraAnalysis import *
+from NozzleFlow.GasProperties import init_cea
 
 
 def data_at_point(A, B, value):
@@ -29,29 +30,57 @@ def throat_radius(flow: dict):
     return Rt
 
 
-def engine_analysis(flow: dict):
-    Lstar = flow["E"]["Lstar"]
-    R_throat = flow["E"]["r_throat"]
-    mdot = flow["E"]["mdot"]
-    Pc = flow["E"]["Pc"]
+def iterate_cooling_design(data:dict, tol=0.5, iter=50, alpha=0.2):
+    Tb = 350
+    x = data["E"]["x"]
 
-    A_throat = np.pi * R_throat**2
+    for _ in range(iter):
 
-    Cstar_actual = Pc * A_throat / mdot
-    Cstar_diff = flow["H"]["cstar"] - Cstar_actual
+        CoolantSizingGuide(data=data, coolant_bulk_temp=Tb, display=False)
+        q = bartz_heat_transfer_1d(info=data)
 
-    P = flow["Flow"]["P"][0]
-    T = flow["Flow"]["T"][0]
-    R = flow["Flow"]["R"]
-    rho = P / (R * T)
-    vu = 1 / rho
+        Tb_new = data_at_point(A=x, B=q["T_cool"], value=0)
 
-    Lc = flow["E"]["Lc"]
-    Ac = np.pi * flow["E"]["y"][0]**2
-    Vc = Lc * Ac
-    t_residence = Vc / (mdot * vu)
+        residual = Tb_new - Tb
 
 
+
+
+def iterate_cooling_design2(data: dict, tol=1e-4, iter=50, relax=0.35):
+    """Only iterates for the true bulk temperature of the coolant at the throat"""
+    # Calculated from previous step
+    def residual(Tb, data):
+        print(f"Trying Tb: {Tb:.2f}")
+        CoolantSizingGuide(data=data, coolant_bulk_temp=Tb, display=False)
+        data["q"] = bartz_heat_transfer_1d(info=data)
+        Tb_new = data_at_point(A=data["E"]["x"], B=data["q"]["T_cool"], value=0)
+        return Tb_new - Tb
+    Tb0 = 350
+    Tb1 = data_at_point(A=data["E"]["x"], B=data["q"]["T_cool"], value=0)
+
+
+    r0 = residual(Tb0, data)
+    r1 = residual(Tb1, data)
+    for i in range(iter):
+        # Feed that back in
+
+        if abs(r1-r0) < 1e-12:
+            print("diving by 0")
+            break
+
+        # Secant update
+        Tb2 = Tb1 - r1 * (Tb1 - Tb0) / (r1 - r0)
+
+        r2 = residual(Tb2, data)
+        if abs(r2) < tol:
+            CoolantSizingGuide(data=data, coolant_bulk_temp=Tb2, display=True)
+            q = bartz_heat_transfer_1d(info=data)
+            return q
+
+        Tb0, r0 = Tb1, r1
+        Tb1, r1 = Tb2, r1
+
+    raise RuntimeError("Cooling design failed to converge! IDK whats wrong")
 
 
 def main_basic(data: dict, nozzle_build: bool = True, display=True):
@@ -59,10 +88,16 @@ def main_basic(data: dict, nozzle_build: bool = True, display=True):
     frmt2               = "{:<50} {:<10} {:<10} {:<}"
     frmte               = "{:<50} {:<10.3e} {:<10} {:<}"
 
+    iterate_cooling = data["iterate_cooling"]
+
     if nozzle_build:
         # Build nozzle
         x, y, a         = build_nozzle(data=data)
-        cooling_geometry(dic=info)
+        if iterate_cooling:
+            CoolantSizingGuide(data=data, display=False, coolant_bulk_temp=350)
+        else:
+            CoolantSizingGuide(data=data, display=True)
+        # cooling_geometry(dic=info)
 
         # data["E"]["Pc"] = 6e6
         #
@@ -89,7 +124,9 @@ def main_basic(data: dict, nozzle_build: bool = True, display=True):
     # Isolate subsonic and supersonic with a negative sign (will be zeroed out eventually)
     ind                 = np.where(eps == 1.0)[0][0]
     eps[:ind]           *= -1
-
+    # print(1)
+    # CoolantSizingGuide(data=data, display=True)
+    # print(2)
     # == ISENTROPIC FLOW CALCULATIONS == #
     isentropic_nozzle_flow(eps=eps, data=data)
 
@@ -112,9 +149,14 @@ def main_basic(data: dict, nozzle_build: bool = True, display=True):
     if dims == 0:
         q: dict         = bartz_heat_transfer_const(info=data)
     elif dims == 1:
-        HotGas_Properties(dic=info)
 
         q: dict         = bartz_heat_transfer_1d(info=data)
+        data["q"] = q
+
+        if iterate_cooling:
+            iterate_cooling_design(data=data, tol=1e-4)
+            q = data["q"]
+        data["q"] = q
 
     else:
         analyze         = False
@@ -160,6 +202,7 @@ def main_basic(data: dict, nozzle_build: bool = True, display=True):
 
         print("=" * 72, f"{'|':<}")
         print(f"{'ENGINE GEOMETRY':^70} {'|':>3}")
+        print("- " * 36, f"{'|':<}")
 
         print(frmt.format("Throat Diameter", min(y) * 2*100, "cm", "|"))
         print(frmt.format("Exit Velocity", exit_vel, "m/s", "|"))
@@ -175,14 +218,16 @@ def main_basic(data: dict, nozzle_build: bool = True, display=True):
 
         print("=" * 72, f"{'|':<}")
         print(f"{'COOLING GEOMETRY':^70} {'|':>3}")
+        print("- " * 36, f"{'|':<}")
 
         print(frmt.format("Number of Channels", data["C"]["num_ch"], "", "|"))
         print(frmt.format("Spacing Between Channels", data["C"]["spacing"] * 1000, "mm", "|"))
         print(frmt.format("Channel Height", data["C"]["height"] * 1000, "mm", "|"))
-        print(frmt.format("Mass Flow Per Channel", data["F"]["mdot"]/data["C"]["num_ch"]/1000, "g/s", "|"))
+        print(frmt.format("Mass Flow Per Channel", data["F"]["mdot"]/data["C"]["num_ch"]*1000, "g/s", "|"))
 
         print("="*72,f"{'|':<}")
         print(f"{'GAS CONDITIONS':^70} {'|':>3}")
+        print("- " * 36, f"{'|':<}")
 
         P_exit = data["Flow"]["P"][-1]
         P_ambient = data["E"]["Pe"]
@@ -228,6 +273,7 @@ def main_basic(data: dict, nozzle_build: bool = True, display=True):
         if analyze:
             print("="*72,f"{'|':<}")
             print(f"{'HEAT DATA':^70} {'|':>3}")
+            print("- " * 36, f"{'|':<}")
 
             print(frmt.format("Maximum Wall Temp", max_wall_temp, "K", "|"))
             print(frmt.format("at ... from throat", max_wall_temp_x*1000, "mm", "|"))
@@ -240,6 +286,7 @@ def main_basic(data: dict, nozzle_build: bool = True, display=True):
             print(frmt.format("Maximum Heat Transfer Coefficient (wall->coolant", max(q["h_wc"])/1000, "kW/m^2-K", "|"))
             print(frmt.format("Average Heat Rate (Qdot)", np.mean(q["Q_dot"]), "W", "|"))
             print(frmt.format("Total Heat rate (Qdot)", sum(q["Q_dot"]), "W", "|"))
+            print(frmt.format("Coolant Temp at Throat", data_at_point(A=data["E"]["x"], B=q["T_cool"], value=0), "K", "|"))
 
             melting_point   = data["W"]["solidus"]
             if max_wall_temp > melting_point:
@@ -264,9 +311,9 @@ def main_basic(data: dict, nozzle_build: bool = True, display=True):
 
         # == PLOTTING == #
         if analyze:
-            flows           = flows1
-            names           = names1
-            subnames        = subnames1
+            flows           = flows1 + flows
+            names           = names1 + names
+            subnames        = subnames1 + subnames
 
         else:
             flows           = flows
@@ -292,13 +339,16 @@ if __name__ == '__main__':
     info = {"CEA": True,
             "plots": "no",
             "dimensions": 1,    # Complexity of heat transfer
+            "iterate_cooling": True,
+            "CEA_obj": object,
+            "rp1_prop_obj": object,
             "E": {
                 "Pc": 6.013e6,  # Chamber Pressure [Pa]
                 "Pe": 101325,  # Ambient Pressure (exit) [Pa]
                 "Tc": 3600,  # Chamber temp [K]
                 "mdot": 1.89,  # Mass Flow Rate [kg/s]
                 "OF": 1.8,
-                "size": 1.0,
+                "size": 0.8,
                 "CR": 7,
                 "Lc": None,
                 "x": None,
@@ -347,16 +397,18 @@ if __name__ == '__main__':
                 # "Type": "Tungsten",
                 # "Type": "Copper Chromium",
                 "Type": "Inconel 718",
-                "thickness": 0.005
+                "thickness": 0.00025
             },
             "C": {
                 "Type": "Square",
-                "spacing": 0.0006,   # Fin thickness -- space between channels
-                "height": 0.0006,     # Channel height
-                "num_ch": 120,
+                "pass": 1,           # Number of passes of each channel standard = 1
+                "spacing": 0.000824,   # Fin thickness -- space between channels
+                "height": 0.000824,     # Channel height
+                "num_ch": 55,
                 "h": None,
                 "Nu": None,
                 "Re": None,
+                "wall_thickness": 0.00025,
             },
             "Flow": {
                 "P": None,
@@ -374,6 +426,7 @@ if __name__ == '__main__':
 
     if info["CEA"]:
         # Run rocketcea
+        init_cea(data=info)
         HotGas_Properties(dic=info)
         Fluid_Properties(dic=info)
         Material_Properties(dic=info)

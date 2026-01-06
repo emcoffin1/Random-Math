@@ -4,13 +4,17 @@ from CoolProp.CoolProp import PropsSI
 import numpy as np
 from rocketprops.rocket_prop import get_prop
 
-def HotGas_Properties(dic, eps=None, forced=False):
+def init_cea(data):
+    data["CEA_obj"] = CEA_Obj(
+        oxName=data["O"]["Type"],
+        fuelName=data["F"]["Type"],
+    )
+    data["rp1_prop_obj"] = get_prop("RP1")
+
+def HotGas_Properties(dic, eps=None, forced=False, channel=False):
     """Passes in metric but is converted to SI. RocketCEA returns SI and is then converted to metric"""
     Pc, fuel, ox, OF = dic["E"]["Pc"], dic["F"]["Type"], dic["O"]["Type"], dic["E"]["OF"]
-    cea = CEA_Obj(
-        oxName=ox,
-        fuelName=fuel
-    )
+    cea = dic["CEA_obj"]
     Pc_psi = Pc * 0.000145038
 
     Tc = dic["E"]["Tc"]
@@ -82,6 +86,13 @@ def HotGas_Properties(dic, eps=None, forced=False):
         dic["H"]["gamma"] = gam_t
         dic["H"]["k"] = k
 
+    if channel:
+
+        dic["H"]["mu"] = mu
+        dic["H"]["cp"] = cp
+        dic["H"]["gamma"] = gam_t
+        dic["H"]["k"] = k
+
     dic["H"]["Pr"] = Pr
     dic["H"]["cstar"] = cstar
     dic["H"]["R"] = R
@@ -115,9 +126,7 @@ def Fluid_Properties(dic: dict, coolant_only=False):
 
         P_f = dic[i]["P"] if dic[i]["P"] is not None else dic["E"]["Pc"] + 689476
         T_f = dic[i]["T"] if dic[i]["T"] is not None else 298
-
-        if T_f > 510:
-            T_f = 510
+        # print("NOW HERE",T_f)
 
         if fluid == "RP-1":
             # R = 49  # J/kg/k
@@ -127,6 +136,7 @@ def Fluid_Properties(dic: dict, coolant_only=False):
             # a1 = -4.45988
             # a2 = 164.814
             T_R = 1.8 * T_f
+            # print("NOWNOWHERE HERE",T_R)
             # mu = 10**a0 * T_R**a1 * 10**(a2/T_R)
             #
             # cp = (1.88192787e-05)*T_f**3 - (2.30240993e-02)*T_f**2 + (1.32103092e+01)*T_f - 3.12233222e+02
@@ -145,7 +155,7 @@ def Fluid_Properties(dic: dict, coolant_only=False):
             #
             # dic[i]["T_max"] = 510
 
-            pObj = get_prop("RP1")
+            pObj = dic["rp1_prop_obj"]
             cp = pObj.CpAtTdegR(T_R) * 4186
             k = pObj.CondAtTdegR(T_R) * 1.730735
             mu = pObj.ViscAtTdegR(T_R) * 0.1
