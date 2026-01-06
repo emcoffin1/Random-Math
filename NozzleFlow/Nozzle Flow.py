@@ -58,7 +58,8 @@ def main_basic(data: dict, nozzle_build: bool = True, display=True):
     frmt2               = "{:<50} {:<10} {:<10} {:<}"
     frmte               = "{:<50} {:<10.3e} {:<10} {:<}"
 
-    iterate_cooling = data["iterate_cooling"]
+    iterate_cooling     = data["iterate_cooling"]
+    channel_plot        = data["ChannelPlot"]
 
     if nozzle_build:
         # Build nozzle
@@ -123,6 +124,9 @@ def main_basic(data: dict, nozzle_build: bool = True, display=True):
 
         # Generate complete cooling geometry
         non_throat_cooling_geom(data=data)
+        # Display the geom
+        if channel_plot:
+            view_channel_slices(data=data)
 
     else:
         analyze         = False
@@ -301,7 +305,9 @@ if __name__ == '__main__':
     info = {"CEA": True,
             "plots": "no",
             "dimensions": 1,    # Complexity of heat transfer
-            "iterate_cooling": True,
+            "iterate_cooling": False,
+            "FilmCool": True,
+            "ChannelPlot": False,
             "CEA_obj": object,
             "rp1_prop_obj": object,
             "E": {

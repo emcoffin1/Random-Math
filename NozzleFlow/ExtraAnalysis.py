@@ -254,7 +254,7 @@ def Startup_Analysis(data: dict):
     x = data["E"]["x"]
     if x is None:
         x, y, a = build_nozzle(data=data)
-        cooling_geometry(dic=data)
+        # cooling_geometry(dic=data)
 
     else:
         y = data["E"]["y"]
@@ -409,6 +409,7 @@ def CoolantSizingGuide(data: dict, fos_temp: float = 0.95, deposit_hg: float = 0
     """
     frmt                = "{:<50} {:<10.3f} {:<10} {:<}"
     frmt2               = "{:<50} {:<10} {:<10} {:<}"
+    frmte               = "{:<50} {:<10.3e} {:<10} {:<}"
 
     x = data["E"]["x"]
     if x is None:
@@ -555,6 +556,7 @@ def CoolantSizingGuide(data: dict, fos_temp: float = 0.95, deposit_hg: float = 0
             print(frmt.format("Inner Diameter", d_inner*1000, "mm", "|"))
             print(frmt.format("Outer Diameter", d_outer*1000, "mm", "|"))
             print(frmt.format("Wall Thickness", t_wall_coolant*1000, "mm", "|"))
+            print(frmte.format("Channel Area", np.pi * d_inner**2/4, "m", "|"))
             print(frmt.format("Mass Flow Per Channel", data["F"]["mdot"] / data["C"]["num_ch"] * 1000, "g/s", "|"))
             print(frmt.format("Coolant Bulk Temp", coolant_bulk_temp, "K", "|"))
 
@@ -573,6 +575,7 @@ def CoolantSizingGuide(data: dict, fos_temp: float = 0.95, deposit_hg: float = 0
             print(frmt.format("Edge Depth", d*1000, "mm", "|"))
             print(frmt.format("Fin Thickness", d*1000, "mm", "|"))
             print(frmt.format("Wall Thickness", t_wall*1000, "mm", "|"))
+            print(frmte.format("Channel Area", d_inner**2, "m", "|"))
             print(frmt.format("Mass Flow Per Channel", data["F"]["mdot"] / data["C"]["num_ch"] * 1000, "g/s", "|"))
             print(frmt.format("Coolant Bulk Temp", coolant_bulk_temp, "K", "|"))
 
@@ -590,7 +593,8 @@ def non_throat_cooling_geom(data: dict):
     data["C"]["depth_arr"] = d
     data["C"]["width_arr"] = w
 
-
+def film_cooling(data: dict):
+    pass
 
 
 
