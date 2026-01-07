@@ -156,16 +156,18 @@ def Fluid_Properties(dic: dict, coolant_only=False):
             #
             # dic[i]["T_max"] = 510
 
-            # pObj = dic["rp1_prop_obj"]
-            pObj = get_prop("RP-1")
+            pObj = dic["rp1_prop_obj"]
+            # pObj = get_prop("RP-1")
             cp = pObj.CpAtTdegR(T_R) * 4186
             cpv = PropsSI("Cpmass", "T", T_f, "P", P_f, "n-Dodecane")
             k = pObj.CondAtTdegR(T_R) * 1.730735
             mu = pObj.ViscAtTdegR(T_R) * 0.1
             rho = 999.016 * pObj.SGLiqAtTdegR(T_R)
+            H_vapor = pObj.HvapAtTdegR(T_R) * 2326
             Pr = cp * mu / k
             R = None
             gamma = None
+
 
 
 
@@ -180,6 +182,10 @@ def Fluid_Properties(dic: dict, coolant_only=False):
             cpv = PropsSI("Cpmass", "T", T_f, "P", P_f, fluid)
             k = PropsSI("L", "T", T_f, "P", P_f, fluid)
             cv = PropsSI("O", "T", T_f, "P", P_f, fluid)
+            # H_vapor_l = PropsSI("H", "P", P_f, "Q", 0, fluid)
+            # H_vapor_v = PropsSI("H", "P", P_f, "Q", 1, fluid)
+            # H_vapor = H_vapor_v - H_vapor_l
+            H_vapor = None
             gamma = cp / cv
             Pr = cp * mu / k
 
@@ -187,10 +193,11 @@ def Fluid_Properties(dic: dict, coolant_only=False):
         dic[i]["mu"] = mu
         dic[i]["rho"] = rho
         dic[i]["cp"] = cp
-        dic[i]["cp_v"] = cpv
+        dic[i]["cpv"] = cpv
         dic[i]["k"] = k
         dic[i]["Pr"] = Pr
         dic[i]["gamma"] = gamma
+        dic[i]["H_vapor"] = H_vapor
 
 def Material_Properties(dic: dict):
     """Manual input of multiple materials for easy reference"""

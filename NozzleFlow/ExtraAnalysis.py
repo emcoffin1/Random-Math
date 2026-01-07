@@ -593,8 +593,10 @@ def non_throat_cooling_geom(data: dict):
     data["C"]["depth_arr"] = d
     data["C"]["width_arr"] = w
 
-def film_cooling(data: dict):
+def structural_analysis(data: dict):
+    r = data["E"]["y"]
     pass
+
 
 
 

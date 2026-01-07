@@ -91,6 +91,8 @@ def main_basic(data: dict, nozzle_build: bool = True, display=True):
     # print(2)
     # == ISENTROPIC FLOW CALCULATIONS == #
     isentropic_nozzle_flow(eps=eps, data=data)
+    # film_cooling(data=data)
+    # return
 
     exit_vel            = data["Flow"]["U"][-1]
     mdot_isen           = (a_min * Pc / np.sqrt(Tc) * np.sqrt(gamma/R*((2/(gamma+1))**((gamma+1)/(gamma-1)))))
@@ -305,7 +307,7 @@ if __name__ == '__main__':
     info = {"CEA": True,
             "plots": "no",
             "dimensions": 1,    # Complexity of heat transfer
-            "iterate_cooling": False,
+            "iterate_cooling": True,
             "FilmCool": True,
             "ChannelPlot": False,
             "CEA_obj": object,
@@ -409,6 +411,7 @@ if __name__ == '__main__':
     # Startup_Analysis(data=info)
     # First_Modal_Analysis(data=info)
     # CoolantSizingGuide(data=info)
+    # film_cooling(data=info)
 
 
     # l = np.linspace(0.01,0.5, 50)

@@ -164,7 +164,6 @@ def bartz_heat_transfer_1d(info: dict, max_iteration=100, tol=1e-13):
         R_w_c           = np.nan
         R_w_w           = np.nan
 
-        h_hg_i          = None
 
         # ==================================== #
         # == COOLANT TEMPERATURE ITERATIONS == #
@@ -189,10 +188,7 @@ def bartz_heat_transfer_1d(info: dict, max_iteration=100, tol=1e-13):
             # Adiabatic wall temperature
 
             Taw_i               = Tc * (1 + r_rec * (gamma[i]-1)/2 * M[i]**2) / (1 + (gamma[i]-1)/2 * M[i]**2)
-            if h_hg_i is not None and film_cooling:
-                # print(f"Pre adiabatic wall: {Taw_i}")
-                Taw_i               = film_effective_aw(data=info, step=i, dx=dx_i, h_hg=h_hg_i, Taw0=Taw_i, Tco=T_guess,)
-                # print(f"Post adiabatic wall: {Taw_i}")
+
             Taw[i]              = Taw_i
 
 
@@ -484,14 +480,4 @@ def dittus_appro(dx:float, dic:dict, dimension: int, step: int):
         Ah = np.pi * (Dh/2)**2
 
 
-def film_effective_aw(data: dict, step: int, dx: float, h_hg:float, Taw0:float, Tco: float, film_perc: float = 0.075, n_eff: float = 0.5):
-    def film_mass_flux(mdot, dx, r):
-        Pw = 2 * np.pi * r
-        return mdot / (Pw * dx)
 
-    r = data["E"]["y"][step]
-    mdot_film = data["E"]["mdot"] * film_perc
-    Gc = film_mass_flux(mdot_film, dx, r)
-    cpv = data["F"]["cpv"]
-    exponent = -h_hg / (Gc * cpv * n_eff)
-    return Tco + (Taw0 - Tco) * np.exp(exponent)
