@@ -1,5 +1,6 @@
 import numpy as np
 from NozzleFlow.GasProperties import Fluid_Properties, HotGas_Properties
+import CoolProp.CoolProp as CP
 
 """https://www.sciencedirect.com/science/article/pii/S2214157X25008834"""
 
@@ -80,6 +81,7 @@ def bartz_heat_transfer_1d(info: dict, max_iteration=100, tol=1e-13):
     # =========================== #
     """Random Solver Controls"""
     film_cooling                = info["FilmCool"]
+    energy_method               = info["EnergyMethod"]
 
     HotGas_Properties(dic=info)
     """Engine and Hot gas information"""
@@ -152,18 +154,41 @@ def bartz_heat_transfer_1d(info: dict, max_iteration=100, tol=1e-13):
         y_i             = float(y[i])
         # Slice thickness
         dx_i            = float(dx_i_arr[i])
-
         if dx_i <= 0:
             raise ValueError(f"dx_i = {dx_i} must be positive!")
 
+        # Coolant inlet state for this slice
+        h_slice_in      = float(info["F"]["H"])
         T_slice_in      = float(T_coolant)
-        T_guess         = T_slice_in
+
+        # Pressure handling
+        P_slice_in = float(info["F"]["P"])
+        P_slice_out = float(info["F"]["P"]) # needs to be replaced once dP modeled
+
+        # Wall iteration guess
+        T_guess = T_slice_in
 
         # Last computed values for use after convergence
         Q_i             = np.nan
         R_w_c           = np.nan
         R_w_w           = np.nan
+        R_hg_w          = np.nan
+        h_coolant       = np.nan
+        Nu = Re = Dh = Ah = V = n_ef = np.nan
+        T_coolant_out   = np.nan
+        T_coolant_avg   = np.nan
+        h_coolant_out   = np.nan
 
+        # Initialize variables for first round
+        if energy_method:
+            info["F"]["H"] = h_slice_in
+            info["F"]["P"] = P_slice_in
+
+        else:
+            info["F"]["T"] = T_slice_in
+            info["F"]["P"] = P_slice_in
+
+        Fluid_Properties(dic=info, coolant_only=True)
 
         # ==================================== #
         # == COOLANT TEMPERATURE ITERATIONS == #
@@ -172,31 +197,25 @@ def bartz_heat_transfer_1d(info: dict, max_iteration=100, tol=1e-13):
         # Iterate a max of j times
         for j in range(max_iteration):
 
-            info["F"]["T"]   = float(T_guess)
-
             h_coolant, Nu, Re, Dh, Ah, V, n_ef = dittus_appro(dx=dx_i, dic=info, dimension=1, step=i)
 
             info["C"]["h"][i]   = h_coolant
             info["C"]["Nu"][i]  = Nu
             info["C"]["Re"][i]  = Re
 
-
             # Hot Gas properties
             Pr                  = (mu[i] * cp[i]) / k[i]
             r_rec               = Pr ** (1/3)
 
             # Adiabatic wall temperature
-
             Taw_i               = Tc * (1 + r_rec * (gamma[i]-1)/2 * M[i]**2) / (1 + (gamma[i]-1)/2 * M[i]**2)
-
             Taw[i]              = Taw_i
 
-
             # Bartz convection coefficient approximation
-            h_hg_i             = bartz_approx(Taw=Taw[i], dic=info, dimension=1, step=i, iteration=j)
+            h_hg_i              = bartz_approx(Taw=Taw[i], dic=info, dimension=1, step=i, iteration=j)
             h_hg[i]             = h_hg_i
 
-            # Thermal resistance
+            # Thermal resistance network
             # Hot gas side
             R_hg_w              = 1 / (2 * np.pi * y_i * dx_i * h_hg_i)
 
@@ -212,14 +231,27 @@ def bartz_heat_transfer_1d(info: dict, max_iteration=100, tol=1e-13):
                 raise ValueError(f"Invalid total resistance at i={i}, j={j}: R_total={R_total}")
 
             # Heat flux to coolant
-            Q_i                   = (Taw_i - T_guess) / R_total
+            Q_i                 = (Taw_i - T_guess) / R_total
 
             # Temperature adjustment
-            T_coolant_out       = T_slice_in + Q_i / (mdot_f * cp_f)
+            if not energy_method:
+                # Temperature marching
+                cp_bulk          = float(info["F"]["cp"])
+                T_coolant_out    = T_slice_in + Q_i / (mdot_f * cp_bulk)
+                T_coolant_avg    = (T_slice_in + T_coolant_out) / 2
 
-            T_coolant_avg       = (T_slice_in + T_coolant_out) / 2
+            else:
+                # Enthalpy marching
+                h_coolant_out    = h_slice_in + Q_i / mdot_f
+                info["F"]["H"] = h_coolant_out
+                info["F"]["P"] = P_slice_out
 
-            residual            = abs(T_coolant_avg - T_guess)
+                Fluid_Properties(dic=info, coolant_only=True)
+                T_coolant_out    = info["F"]["T"]
+                T_coolant_avg    = 0.5 * (T_slice_in + T_coolant_out)
+
+
+            residual             = abs(T_coolant_avg - T_guess)
             if residual < tol:
                 converge_count += 1
                 break
@@ -227,7 +259,25 @@ def bartz_heat_transfer_1d(info: dict, max_iteration=100, tol=1e-13):
             T_guess             = T_coolant_avg
 
 
-        # Coolant and heat transfer slice results
+            # Update values for next iteration
+            if energy_method:
+                P_bulk = 0.5 * (P_slice_in + P_slice_out)
+                h_bulk = 0.5 * (h_slice_in + h_coolant_out)
+                info["F"]["P"] = P_bulk
+                info["F"]["H"] = h_bulk
+                Fluid_Properties(dic=info, coolant_only=True)
+
+            else:
+                P_bulk = 0.5 * (P_slice_in + P_slice_out)
+                T_bulk = float(T_coolant_avg)
+                info["F"]["P"] = P_bulk
+                info["F"]["T"] = T_bulk
+                Fluid_Properties(dic=info, coolant_only=True)
+
+        # ========================== #
+        # == COMMIT SLICE RESULTS == #
+        # ========================== #
+
         T_coolant = float(T_coolant_out)
         T_c_out[i] = T_coolant_out
         Q_dot[i] = float(Q_i)
@@ -243,11 +293,13 @@ def bartz_heat_transfer_1d(info: dict, max_iteration=100, tol=1e-13):
         R_w_w_arr[i] = R_w_w
         R_w_c_arr[i] = R_w_c
 
-
-
         # Wall temperature for slice
         T_wall_coolant[i] = T_coolant_out + Q_i * R_w_c
         T_wall_gas[i] = T_wall_coolant[i] + Q_i * R_w_w
+
+        # Advance coolant enthalpy for next slice
+        if energy_method:
+            info["F"]["H"] = float(h_coolant_out)
 
 
     Q_total = np.sum(Q_dot)

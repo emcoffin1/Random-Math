@@ -310,6 +310,7 @@ if __name__ == '__main__':
             "iterate_cooling": True,
             "FilmCool": True,
             "ChannelPlot": False,
+            "EnergyMethod": False,
             "CEA_obj": object,
             "rp1_prop_obj": object,
             "E": {
@@ -339,7 +340,8 @@ if __name__ == '__main__':
             "F": {
                 "Type": "RP-1",
                 "T": 298,
-                "P": None,
+                "P": 6.895e6,
+                "H": None,
                 "mu": None,
                 "k": None,
                 "rho": None,
@@ -353,6 +355,7 @@ if __name__ == '__main__':
                 "Type": "LOX",
                 "T": 98,
                 "P": None,
+                "H": None,
                 "mu": None,
                 "k": None,
                 "rho": None,
