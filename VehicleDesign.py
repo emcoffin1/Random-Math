@@ -37,16 +37,17 @@ def stoich_of_formula(fuel_formula, fuel_mw=None, oxid_formula="O2", oxid_mw=32.
     return OF
 
 
-def isp_getter(fuel, ox, plot=False):
+def isp_getter(fuel, ox, plot=True):
 
     CEA = CEA_Obj(
         oxName=ox,
         fuelName=fuel)
 
     result_isp = []
-    OF = np.linspace(1, 500, 100)
+    OF = np.linspace(1, 5, 500)
+    pc = 2.5e6* 0.000145038
     for i in OF:
-        result_isp.append(CEA.get_Isp(Pc=300, MR=i))
+        result_isp.append(CEA.get_Isp(Pc=pc, MR=i))
         # result_isp.append(CEA.get_Tcomb(Pc=i, MR=2.66))
 
     idx = np.argmax(result_isp)
@@ -90,7 +91,6 @@ def rocket_eqn_analysis(fuel, ox, alt: int, of, isp, T_W_ratio: float = 6, m0: f
     max_exit_area = np.pi * max_exit_diameter ** 2 / 4
 
     P_exit = 101325
-    Pc = None
 
     # Iterate over Pressure ratios
     # Get mach number
@@ -120,10 +120,32 @@ def rocket_eqn_analysis(fuel, ox, alt: int, of, isp, T_W_ratio: float = 6, m0: f
         dif_list.append(M_from_exit - M_i)
         # print(M_from_exit - M_i)
 
-    plt.plot(Pc_list, dif_list)
-    plt.show()
+    # plt.plot(Pc_list, dif_list)
+    # plt.show()
 
+    Pc_chosen = 2.5e6
+    mw, gam_c = CEA.get_Chamber_MolWt_gamma(Pc=Pc_chosen, MR=of)
+    Tc = CEA.get_Tcomb(Pc=Pc_chosen, MR=of)
+    R = 8314.462618 / mw
+    P = Pc_chosen / P_exit
+    gr = (gam_c - 1) / gam_c
+    term1 = 2 / (gam_c - 1)
+    term2 = P ** gr - 1
+    M_at_pc = np.sqrt(term1 * term2)
 
+    T_static = Tc / (1 + ((gam_c-1)/2*M_at_pc**2))
+    aspect_ratio = (1/M_at_pc) * ((2/(gam_c+1)) * (1 + (((gam_c-1)/2)*M_at_pc**2)))**((gam_c+1)/(2*(gam_c-1)))
+
+    A_throat = max_exit_area / aspect_ratio
+    D_throat = np.sqrt(A_throat*4/np.pi)
+
+    A_throat_choked = (mdot/Pc_chosen) * np.sqrt(T_static * R / gam_c) * (2/(gam_c+1))**((gam_c+1)/((2*(gam_c-1))))
+    D_throat_choked = np.sqrt(A_throat_choked*4/np.pi)
+
+    a = np.sqrt(gam_c * R * T_static)
+    v_exit_actual = M_at_pc * a
+
+    F = mdot * v_exit_actual
 
 
 
@@ -144,9 +166,30 @@ def rocket_eqn_analysis(fuel, ox, alt: int, of, isp, T_W_ratio: float = 6, m0: f
     print(f"Target exhaust velocity: \n"
           f"{v_exit:.2f} m/s\n"
           f"{v_exit * 3.28084:.2f} ft/s\n")
-    # print(f"Recommended chamber pressure: \n"
-    #       f"{P:.2f} Pa\n"
-    #       f"{P * 0.000145038:.2f} PSI\n")
+    print(f"Chosen chamber pressure: \n"
+          f"{Pc_chosen:.2f} Pa\n"
+          f"{Pc_chosen * 0.000145038:.2f} PSI\n")
+    print(f"Exit mach/velocity: \n"
+          f"{M_at_pc:.2f} \n"
+          f"{v_exit_actual:.2f} m/s\n"
+          f"{v_exit_actual * 3.28084:.2f} ft/s\n")
+    print(f"Aspect Ratio: \n"
+          f"{aspect_ratio:.2f} \n")
+    print(f"Throat area from ratio:\n"
+          f"{A_throat:.2f} m^2\n"
+          f"{A_throat*1550:.2f} in^2\n")
+    print(f"Throat area from choked flow:\n"
+          f"{A_throat_choked:.2f} m^2\n"
+          f"{A_throat_choked*1550:.2f} in^2\n")
+    print(f"Throat diameter from ratio:\n"
+          f"{D_throat:.2f} m\n"
+          f"{D_throat / 0.0254:.2f} in\n")
+    print(f"Throat diameter from choked flow:\n"
+          f"{D_throat_choked:.2f} m\n"
+          f"{D_throat_choked / 0.0254:.2f} in\n")
+    print(f"Actual force generated:\n"
+          f"{F:.2f} N\n"
+          f"{F*0.224809:.2f} lbf\n")
 
 
 

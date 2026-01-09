@@ -146,11 +146,11 @@ if __name__ == '__main__':
     info = {
             "Solver": {
                 "CEA": True,
-                "IterateCooling": True,
+                "IterateCooling": False,
                 "IteratePressureDrop": True,
                 "FilmCool": False,
                 "EnergyMethod": True,
-                "HeatSolver": False,
+                "HeatSolver": True,
             },
             "Display": {
                 "PrintOut": True,
@@ -158,17 +158,17 @@ if __name__ == '__main__':
                 "FlowPlot": False,
                 "EnergyPlot": False,
                 "ChannelPlot": False,
-                "ContourPlot": False,
+                "ContourPlot": True,
             },
             "CEA_obj": object,
             "E": {
-                "Pc": 5e6,  # Chamber Pressure [Pa]
+                "Pc": 2.5e6,  # Chamber Pressure [Pa]
                 "Pe": 101325,  # Ambient Pressure (exit) [Pa]
                 "Tc": None,  # Chamber temp [K]
-                "mdot": 10,  # Mass Flow Rate [kg/s]
-                "OF": 3.6,
+                "mdot": 1.97,  # Mass Flow Rate [kg/s]
+                "OF": 2.69,
                 "size": 0.8,
-                "CR": 7,
+                "CR": 6,
                 "Lc": None,
                 "x": None,
                 "y": None,
@@ -188,8 +188,8 @@ if __name__ == '__main__':
             "F": {
                 "Type": "Kerosene",
                 "State": None,
-                "T": 113.15,
-                "P": 7e6,
+                "T": 298,
+                "P": 6e6,
                 "H": 0,
                 "mu": None,
                 "k": None,
@@ -205,7 +205,7 @@ if __name__ == '__main__':
                 "Type": "LOX",
                 "State": None,
                 "T": 98,
-                "P": 7e6,
+                "P": 6e6,
                 "H": 0,
                 "mu": None,
                 "k": None,

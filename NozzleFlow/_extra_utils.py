@@ -3,6 +3,11 @@ import numpy as np
 from matplotlib.collections import PolyCollection
 from scipy.interpolate import CubicSpline
 from GeometryDesign import view_channel_slices
+import os
+import sys
+from pathlib import Path
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
 
 def data_at_point(A, B, value):
     """
@@ -196,6 +201,7 @@ def Moody_plot(eps_dh: float, Re: float):
 
 
 def data_display(data: dict):
+    os.system("cls" if os.name == "nt" else "clear")
     frmt                = "{:<50} {:<10.3f} {:<10} {:<}"
     frmt2               = "{:<50} {:<10} {:<10} {:<}"
     frmte               = "{:<50} {:<10.3e} {:<10} {:<}"
@@ -287,6 +293,7 @@ def data_display(data: dict):
     print(frmt.format("Max Wall Temp Used", data["W"]["max_wall_temp"], "K", "|"))
     print(frmt2.format("Geometry Type", data["C"]["Type"].title(), "", "|"))
     print(frmt.format("Pressure Drop Through Channels", data["C"]["dP"]/1000, "kPa", "|"))
+    print(frmt.format("Fuel Inlet Pressure", data["F"]["StartingPressure"]/1e6, "MPa", "|"))
 
     if data["C"]["Type"].lower() == "circle":
         print(frmt.format("Number of Channels", data["C"]["num_ch"], "", "|"))
@@ -331,6 +338,8 @@ def data_display(data: dict):
         print(frmt.format("Maximum Heat Transfer Coefficient (wall->coolant", max(q["h_wc"]) / 1000, "kW/m^2-K", "|"))
         print(frmt.format("Average Heat Rate (Qdot)", np.mean(q["Q_dot"]), "W", "|"))
         print(frmt.format("Total Heat rate (Qdot)", sum(q["Q_dot"]), "W", "|"))
+
+
 
         melting_point = data["W"]["solidus"]
         if max_wall_temp > melting_point:

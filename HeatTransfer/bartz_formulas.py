@@ -604,6 +604,7 @@ def pressure_drop_assessment(data: dict):
     # print(f"From: {type(rho)} there is a {sum_array:.2f} dP")
 
     data["F"]["P"] = data["Injector"]["dP"] + dP_array.sum()
+    data["F"]["StartingPressure"] = data["F"]["P"]
     if data["Solver"]["EnergyMethod"]:
         data["Solver"]["EnergyMethod"] = False
         Fluid_Properties(dic=data)
