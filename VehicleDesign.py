@@ -43,13 +43,15 @@ def isp_getter(fuel, ox, plot=False):
         oxName=ox,
         fuelName=fuel)
 
-    result = []
-    OF = np.linspace(1, 5, 100)
+    result_isp = []
+    OF = np.linspace(1, 500, 100)
     for i in OF:
-        result.append(CEA.get_Isp(Pc=300, MR=i))
+        result_isp.append(CEA.get_Isp(Pc=300, MR=i))
+        # result_isp.append(CEA.get_Tcomb(Pc=i, MR=2.66))
 
-    idx = np.argmax(result)
-    print(f"OF for Maximum ISP: {OF[idx]:.2f}")
+    idx = np.argmax(result_isp)
+    of_best = OF[idx]
+    print(f"OF for Maximum ISP: {of_best:.2f}")
 
 
     MAP = {
@@ -61,33 +63,94 @@ def isp_getter(fuel, ox, plot=False):
     fuel = MAP.get(fuel, fuel)
     # of_stoich = stoich_of_formula("C12H26")
     of_stoich = stoich_of_formula(fuel)
-    print(f"Stoich OF: {of_stoich:.2f}")
+    # print(f"Stoich OF: {of_stoich:.2f}")
     #
     if plot:
-        plt.plot(OF, result)
+        plt.plot(OF, result_isp)
         plt.axvline(of_stoich, color='r')
         plt.show()
-    return OF[idx], result[idx]
+
+    return of_best, result_isp[idx]
 
 
-def rocket_eqn_analysis(alt: int, of, isp, T_W_ratio: float = 6, m0: float = 68.04):
+def rocket_eqn_analysis(fuel, ox, alt: int, of, isp, T_W_ratio: float = 6, m0: float = 100):
+    CEA = CEA_Obj(
+        oxName=ox,
+        fuelName=fuel)
+
     T_sl = T_W_ratio * m0 * 9.81
+    mdot = T_sl / (isp * 9.81)
+
+    mdot_fuel = mdot / (of + 1)
+    mdot_lox = of * mdot / (1 + of)
+
+    v_exit = T_sl / mdot
+
+    max_exit_diameter = 6 * 0.0254
+    max_exit_area = np.pi * max_exit_diameter ** 2 / 4
+
+    P_exit = 101325
+    Pc = None
+
+    # Iterate over Pressure ratios
+    # Get mach number
+    # With new chamber pressure compute gamma, R, T to get mach wrt v_exit
+    # Compare difference, determine Pc that gives closest to v_exit
+    Pc_list = np.linspace(P_exit, 9e6, 100)
+    dif_list = []
+    for i in Pc_list:
+        Pr = i/P_exit
+
+        Tc = CEA.get_Tcomb(Pc=i, MR=of) * 5/9
+        mw, gam_c = CEA.get_Chamber_MolWt_gamma(Pc=i, MR=of)
+        R = 8314.462618 / mw
+
+        P = Pr
+        gr = (gam_c - 1) / gam_c
+        term1 = 2 / (gam_c - 1)
+        term2 = P ** gr - 1
+        M_i = np.sqrt(term1 * term2)
+        # M_i = ((Pr**((gam_c - 1)/gam_c) - 1) * 2 / (gam_c - 1))**0.5
+        T_static = Tc / (1 + ((gam_c - 1)/2*M_i**2))
+
+
+        a = np.sqrt(gam_c * R * T_static)
+        M_from_exit = v_exit / a
+
+        dif_list.append(M_from_exit - M_i)
+        # print(M_from_exit - M_i)
+
+    plt.plot(Pc_list, dif_list)
+    plt.show()
+
+
+
+
 
     print(f"SL Thrust due to T/W ratio: \n"
           f"{T_sl:.2f} N\n"
-          f"{T_sl*0.224809:.2f} lbs"
+          f"{T_sl*0.224809:.2f} lbs\n"
           )
-
-    mdot = T_sl / (isp * 9.81)
+    print(f"At OF: {of:.2f}\n")
     print(f"Required mass flow rate: \n"
           f"{mdot:.2f} kg/s\n"
           f"{mdot * 2.20462:.2f} lb/s\n")
-
-    mdot_fuel = None
+    print(f"Fuel mass flow rate: \n"
+          f"{mdot_fuel:.2f} kg/s\n"
+          f"{mdot_fuel * 2.20462:.2f} lb/s\n")
+    print(f"Lox mass flow rate: \n"
+          f"{mdot_lox:.2f} kg/s\n"
+          f"{mdot_lox * 2.20462:.2f} lb/s\n")
+    print(f"Target exhaust velocity: \n"
+          f"{v_exit:.2f} m/s\n"
+          f"{v_exit * 3.28084:.2f} ft/s\n")
+    # print(f"Recommended chamber pressure: \n"
+    #       f"{P:.2f} Pa\n"
+    #       f"{P * 0.000145038:.2f} PSI\n")
 
 
 
 if __name__ == "__main__":
     # isp_getter(fuel="Kerosene", ox="O2")
-    isp, of = isp_getter(fuel="Kerosene", ox="O2")
-    rocket_eqn_analysis(alt=1, isp=isp, of=of)
+    of, isp = isp_getter(fuel="Kerosene", ox="LOX")
+    rocket_eqn_analysis(fuel="Kerosene", ox="LOX", alt=1, isp=isp, of=of)

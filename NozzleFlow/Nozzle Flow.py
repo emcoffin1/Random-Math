@@ -150,7 +150,7 @@ if __name__ == '__main__':
                 "IteratePressureDrop": True,
                 "FilmCool": False,
                 "EnergyMethod": True,
-                "HeatSolver": True,
+                "HeatSolver": False,
             },
             "Display": {
                 "PrintOut": True,
@@ -186,7 +186,7 @@ if __name__ == '__main__':
                 "R": None,
             },
             "F": {
-                "Type": "CH4",
+                "Type": "Kerosene",
                 "State": None,
                 "T": 113.15,
                 "P": 7e6,
