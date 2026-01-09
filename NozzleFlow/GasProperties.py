@@ -1,6 +1,6 @@
 from rocketcea.cea_obj import CEA_Obj
 from scipy.interpolate import PchipInterpolator
-from CoolProp.CoolProp import PropsSI
+from CoolProp.CoolProp import PropsSI, AbstractState
 import CoolProp.CoolProp as CP
 import numpy as np
 from rocketprops.rocket_prop import get_prop
@@ -10,7 +10,20 @@ def init_cea(data):
         oxName=data["O"]["Type"],
         fuelName=data["F"]["Type"],
     )
-    data["rp1_prop_obj"] = get_prop("RP1")
+
+    FLUID_MAP = {
+        "LOX": "Oxygen",
+        "GOX": "Oxygen",
+        "RP-1": "n-Dodecane",
+        "Kerosene": "n-Dodecane",
+        "Kero": "n-Dodecane",
+        "CH4": "Methane"
+    }
+
+    for key in ["F", "O"]:
+        fluid = FLUID_MAP.get(data[key]["Type"], data[key]["Type"])
+        data[key]["State"] = AbstractState("HEOS", fluid)
+
 
 def HotGas_Properties(dic, eps=None, forced=False, channel=False):
     """Passes in metric but is converted to SI. RocketCEA returns SI and is then converted to metric"""
@@ -21,7 +34,6 @@ def HotGas_Properties(dic, eps=None, forced=False, channel=False):
     Tc = dic["E"]["Tc"]
     if Tc is None:
         dic["E"]["Tc"] = cea.get_Tcomb(Pc=Pc_psi, MR=OF) * 5/9
-
 
     if eps is not None:
         mw, gam_c = cea.get_Chamber_MolWt_gamma(Pc=Pc_psi, MR=OF, eps=eps)
@@ -104,11 +116,12 @@ def HotGas_Properties(dic, eps=None, forced=False, channel=False):
 
 def Fluid_Properties(dic: dict, coolant_only=False):
     """Currently assumes ideal conditions and ideal gas/fluids"""
+    energy_method = dic["Solver"]["EnergyMethod"]
+
     mdot = dic["E"]["mdot"]
     of = dic["E"]["OF"]
     dic["F"]["mdot"] = mdot / (of + 1)
     dic["O"]["mdot"] = of * mdot / (of + 1)
-    energy_method = dic["EnergyMethod"]
 
     FLUID_MAP = {
         "LOX": "Oxygen",
@@ -116,89 +129,76 @@ def Fluid_Properties(dic: dict, coolant_only=False):
         "RP-1": "n-Dodecane",
         "Kerosene": "n-Dodecane",
         "Kero": "n-Dodecane",
+        "CH4": "Methane"
     }
 
     fluids = ["F"] if coolant_only else ["F", "O"]
 
     for i in fluids:
         fluid = dic[i]["Type"]
-        fluid = FLUID_MAP.get(fluid, fluid)
+        try:
+            fluid = FLUID_MAP.get(fluid, fluid)
+        except:
+            pass
+        st = dic[i]["State"]
 
         P_f = dic[i]["P"] if dic[i]["P"] is not None else dic["E"]["Pc"] + 689476
 
-        if not energy_method:
-            state = ("T", dic[i]["T"] if dic[i]["T"] is not None else 298)
+        if energy_method:
+            H = dic[i]["H"]
+
+            s = CP.PropsSI("S", "P", P_f, "H", H, fluid)
+            st.update(CP.PSmass_INPUTS, P_f, s)
 
         else:
-            state = ("H", dic[i]["H"] if dic[i]["H"] is not None else 0)
-        label, value = state
+            T = dic[i]["T"]
+            st.update(CP.PT_INPUTS, P_f, T)
 
-        # pObj = dic["rp1_prop_obj"]
-        # pObj = get_prop("RP-1")
 
-        # T_R = 1.8 * T_f
-        # cp = pObj.CpAtTdegR(T_R) * 4186
-        # cpv = PropsSI("Cpmass", "T", T_f, "P", P_f, "n-Dodecane")
-        # h = PropsSI("H", "P", P_f, "T", T_f, "n-Dodecane")
-        # k = pObj.CondAtTdegR(T_R) * 1.730735
-        # mu = pObj.ViscAtTdegR(T_R) * 0.1
-        # rho = 999.016 * pObj.SGLiqAtTdegR(T_R)
-        # H_vapor = pObj.HvapAtTdegR(T_R) * 2326
-        # Pr = cp * mu / k
-        # R = None
-        # gamma = None
+        # Saturation guard
+        Tsat = hsat = None
+        if P_f < st.p_critical():
+            try:
+              st.update(CP.PQ_INPUTS, P_f, 0.0)
+              Tsat = st.T()
+              hsat = st.hmass()
+            except ValueError:
+                pass
 
-        cp          = PropsSI("C", "P", P_f, label, value, fluid)
-        cv          = PropsSI("O", "P", P_f, label, value, fluid)
-        cpv         = PropsSI("Cpmass", "P", P_f, label, value, fluid)
-        h           = PropsSI("H", "P", P_f, label, value, fluid)
-        k           = PropsSI("L", "P", P_f, label, value, fluid)
-        mu          = PropsSI("V", "P", P_f, label, value, fluid)
-        rho         = PropsSI("D", "P", P_f, label, value, fluid)
-        R_u         = PropsSI("GAS_CONSTANT", "P", P_f, label, value, fluid)
-        M           = PropsSI("molemass", "P", P_f, label, value, fluid)
-        # H_vapor_l   = PropsSI("H", "P", P_f, "Q", 0, fluid)
-        # H_vapor_v   = PropsSI("H", "P", P_f, "Q", 1, fluid)
+        # ---- Restore actual state after PQ call ----
+        if energy_method:
+            st.update(CP.PSmass_INPUTS, P_f, s)
+        else:
+            st.update(CP.PT_INPUTS, P_f, T)
 
-        Pr          = cp * mu / k
-        R           = R_u / M
-        gamma       = cp / cv
-        # try:
-        #     H_vapor     = H_vapor_v - H_vapor_l
-        # except:
-        #     H_vapor     = np.nan
+        dic[i]["H"] = st.hmass()
+        dic[i]["T"] = st.T()
+        dic[i]["Tcrit"] = st.T_critical()
 
-        dic[i]["H"] = h
-        dic[i]["T"] = CP.PropsSI("T", "P", P_f, label, value, fluid)
+        dic[i]["Tsat"] = Tsat
+        dic[i]["Hsat"] = hsat
 
-    # elif coolant_only == False:
-    #
-    #     R_u = PropsSI("GAS_CONSTANT", "T", T_f, "P", P_f, fluid)
-    #     M = PropsSI("molemass", "T", T_f, "P", P_f, fluid)
-    #     R = R_u / M
-    #     rho = PropsSI("D", "T", T_f, "P", P_f, fluid)
-    #     mu = PropsSI("V", "T", T_f, "P", P_f, fluid)
-    #     cp = PropsSI("C", "T", T_f, "P", P_f, fluid)
-    #     cpv = PropsSI("Cpmass", "T", T_f, "P", P_f, fluid)
-    #     k = PropsSI("L", "T", T_f, "P", P_f, fluid)
-    #     cv = PropsSI("O", "T", T_f, "P", P_f, fluid)
-    #     # H_vapor_l = PropsSI("H", "P", P_f, "Q", 0, fluid)
-    #     # H_vapor_v = PropsSI("H", "P", P_f, "Q", 1, fluid)
-    #     # H_vapor = H_vapor_v - H_vapor_l
-    #     h = PropsSI("H", "P", P_f, "T", T_f, "n-Dodecane")
-    #     H_vapor = None
-    #     gamma = cp / cv
-    #     Pr = cp * mu / k
+        # props = [m for m in dir(st) if not m.startswith("_")]
+        #
+        # for p in sorted(props):
+        #     print(p)
 
-        dic[i]["R"] = R
-        dic[i]["mu"] = mu
-        dic[i]["rho"] = rho
-        dic[i]["cp"] = cp
-        dic[i]["cpv"] = cpv
-        dic[i]["k"] = k
-        dic[i]["Pr"] = Pr
-        dic[i]["gamma"] = gamma
-        # dic[i]["H_vapor"] = H_vapor
+        dic[i]["R"] = st.gas_constant() / st.molar_mass()
+        dic[i]["mu"] = st.viscosity()
+        dic[i]["rho"] = st.rhomass()
+        dic[i]["cp"] = st.cpmass()
+        dic[i]["cpv"] = st.cpmass()
+        dic[i]["cv"] = st.cvmass()
+        dic[i]["k"] = st.conductivity()
+        dic[i]["Pr"] = st.Prandtl()
+        dic[i]["gamma"] = st.cpmass() / st.cvmass()
+
+        if not np.isfinite(dic["F"]["k"]):
+            raise ValueError(f"BAD k at: \n"
+                  f"{P_f} Pa\n"
+                  f"{dic["F"]["H"]} J/kg")
+
+
 
 def Material_Properties(dic: dict):
     """Manual input of multiple materials for easy reference"""

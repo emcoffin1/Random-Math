@@ -173,9 +173,11 @@ def chamber_contraction(x, y, info: dict, Lc=0.05):
 
     f = info["F"]["Type"]
     o = info["O"]["Type"]
-    if f == "RP-1" and o == "LOX":
+    if (f == "RP-1" or f=="Kerosene") and o == "LOX":
         Lstar = 1.143   # 45 in
 
+    elif (f == "CH4") and o == "LOX":
+        Lstar = 2.0
     else:
         Lstar = 1.0
         print("WARNING : Current propellant choices not available, defaulting to L* = ", Lstar)
@@ -217,7 +219,7 @@ def build_nozzle(data: dict, chamber=True):
 
     Pe, Pc, T, size, mdot, Rt, gamma, R, plots, eps = (
         data["E"]["Pe"], data["E"]["Pc"], data["E"]["Tc"], data["E"]["size"], data["E"]["mdot"], data["E"]["Rt"], data["H"]["gamma"],
-        data["H"]["R"], data["plots"], data["E"]["eps"]
+        data["H"]["R"], data["Display"]["EnginePlot"], data["E"]["eps"]
     )
 
     # Engine Structure/shape
@@ -257,19 +259,7 @@ def build_nozzle(data: dict, chamber=True):
     x = np.concatenate((x_ch, xen[:-1], xe, xq))
     y = np.concatenate((y_ch, yen[:-1], ye, yq))
 
-    # Partial Rao Bell partial smooth curve
-    # x = np.concatenate((x_ch, x_con[:-1], xe, xq))
-    # y = np.concatenate((y_ch, y_con[:-1], ye, yq))
-
-
-    # sort_idx = np.argsort(x)
-    # x, y = np.array(x)[sort_idx], np.array(y)[sort_idx]
-
     x, y = convert_to_func(x=x, y=y, save=False)
-
-    # it = np.argmin(y)
-    # assert np.all(np.diff(y[:it]) < 0)  # monotonic contraction
-    # assert np.all(np.diff(y[it:]) > 0)  # monotonic expansion
 
     a = area_conversion(y)
     r_throat = np.min(y)
@@ -285,6 +275,15 @@ def build_nozzle(data: dict, chamber=True):
     data["E"]["r_throat"] = Rt
     data["E"]["r_exit"] = 0.382 * Rt
     data["E"]["r_entry"] = 1.5 * Rt
+
+    N = len(x)
+    dx_edge = np.diff(x)
+    dx = np.zeros(N)
+
+    dx[0] = dx_edge[0]
+    dx[-1] = dx_edge[-1]
+    dx[1:-1] = 0.5 * (dx_edge[1:] + dx_edge[:-1])
+    data["E"]["dx"] = dx
 
     if np.any(data["E"]["aspect_ratio"] <= 0):
         raise ValueError("There is a negative value in the aspect ratio. FOUND IN DESIGN")

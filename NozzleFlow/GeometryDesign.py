@@ -5,7 +5,7 @@ from matplotlib.path import Path
 from matplotlib.patches import PathPatch
 
 
-def view_channel_slices(data: dict):
+def view_channel_slices(data, fig, ax, ax_slider):
     N = len(data["E"]["x"])
     N_ch = int(data["C"]["num_ch"])
     fin_t = data["C"]["spacing"]
@@ -13,9 +13,11 @@ def view_channel_slices(data: dict):
     chan_depth = data["C"]["depth_arr"]
     r_gas = data['E']["y"]
     t_wall = data["W"]["thickness"]
+    wall_patch = None
+    channel_patches = []
+    theta = np.linspace(0, 2*np.pi, 500)
 
-    fig, ax = plt.subplots()
-    plt.subplots_adjust(bottom=0.2)
+
     rc_outer_const = np.max(r_gas) + t_wall + 1.2* np.max(chan_depth)
 
 
@@ -35,7 +37,7 @@ def view_channel_slices(data: dict):
         ax.fill(corners[:, 0], corners[:, 1], color="r", alpha=0.7)
 
     def draw_slice(i):
-        ax.clear()
+        nonlocal wall_patch, channel_patches
 
         rg = r_gas[i]
         rw = rg + t_wall
@@ -44,7 +46,6 @@ def view_channel_slices(data: dict):
         d = chan_depth[i]
         f = fin_t
 
-        theta = np.linspace(0, 2*np.pi, 500)
 
         # Gas wall
         # ax.add_patch(plt.Circle((0,0), rg, fill=False, linestyle="--", edgecolor="k"))
@@ -56,13 +57,42 @@ def view_channel_slices(data: dict):
         xo = rw * np.cos(theta)
         yo = rw * np.sin(theta)
 
-        # Inner wall and outer wall
-        ax.fill(np.concatenate([xi, xo]), np.concatenate([yi, yo]), color="k", alpha=0.7)
+        wall_cords = np.column_stack([
+            np.concatenate([xi, xo]),
+            np.concatenate([yi, yo])
+        ])
 
+        if wall_patch is None:
+            wall_patch = ax.fill(wall_cords[:, 0], wall_cords[:, 1], color="k", alpha=0.7)[0]
+        else:
+            wall_patch.set_xy(wall_cords)
+
+        while len(channel_patches) < N_ch:
+            p = ax.fill([], [], color="r", alpha=0.7)[0]
+            channel_patches.append(p)
 
         for n in range(N_ch):
-            theta0 = n *2 * np.pi / N_ch
-            channel_plot(ax, r_wall=rw, w=w, d=d, theta0=theta0)
+            theta0 = n * 2 * np.pi / N_ch
+            nvec = np.array([np.cos(theta0), np.sin(theta0)])
+            tvec = np.array([-np.sin(theta0), np.cos(theta0)])
+            c = rw*nvec
+
+            corners = np.array([
+                c + (-w/2)*tvec,
+                c + ( w/2)*tvec,
+                c + ( w/2)*tvec + d*nvec,
+                c + (-w/2)*tvec + d*nvec
+            ])
+
+            channel_patches[n].set_xy(corners)
+
+        # Inner wall and outer wall
+        # ax.fill(np.concatenate([xi, xo]), np.concatenate([yi, yo]), color="k", alpha=0.7)
+
+
+        # for n in range(N_ch):
+        #     theta0 = n *2 * np.pi / N_ch
+        #     channel_plot(ax, r_wall=rw, w=w, d=d, theta0=theta0)
 
 
         # Channel
@@ -75,19 +105,25 @@ def view_channel_slices(data: dict):
         # r_max = np.max(r_)
         ax.set_xlim(-lim, lim)
         ax.set_ylim(-lim, lim)
-        ax.set_aspect("equal", adjustable="box")
-        ax.set_title(f"Axial Station {i}")
+        ax.autoscale_view()
+        ax.set_aspect("equal", adjustable='box')
         ax.axis('off')
-
+        ax.set_title(f"Axial Station {i}")
 
     draw_slice(0)
-
-    ax_slider = plt.axes([0.2, 0.05, 0.6, 0.03])
     slider = Slider(ax_slider, "Station", 0, N - 1, valinit=0, valstep=1)
 
+
     def update(val):
-        draw_slice(int(slider.val))
-        fig.canvas.draw_idle()
+        # i = int(val)
+        # draw_slice(i)
+        # fig.canvas.draw_idle()
+        draw_slice(int(val))
+        fig.canvas.blit(ax.bbox)
 
     slider.on_changed(update)
-    plt.show()
+    return slider
+
+
+
+

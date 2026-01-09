@@ -1,6 +1,7 @@
 import numpy as np
 from NozzleFlow.GasProperties import Fluid_Properties, HotGas_Properties
 import CoolProp.CoolProp as CP
+from NozzleFlow._extra_utils import Moody_plot
 
 """https://www.sciencedirect.com/science/article/pii/S2214157X25008834"""
 
@@ -80,8 +81,8 @@ def bartz_heat_transfer_1d(info: dict, max_iteration=100, tol=1e-13):
     # ==  Dictionary breakdown == #
     # =========================== #
     """Random Solver Controls"""
-    film_cooling                = info["FilmCool"]
-    energy_method               = info["EnergyMethod"]
+    film_cooling                = info["Solver"]["FilmCool"]
+    energy_method               = info["Solver"]["EnergyMethod"]
 
     HotGas_Properties(dic=info)
     """Engine and Hot gas information"""
@@ -95,6 +96,7 @@ def bartz_heat_transfer_1d(info: dict, max_iteration=100, tol=1e-13):
     mdot_f                      = float(info["F"]["mdot"])
     cp_f                        = float(info["F"]["cp"])
     T_f                         = float(info["F"]["T"])  # inlet coolant temperature at nozzle-exit side
+    P_inlet                     = info["F"]["P"]
 
     """Wall Properties"""
     t_w                         = float(info["W"]["thickness"])
@@ -127,6 +129,7 @@ def bartz_heat_transfer_1d(info: dict, max_iteration=100, tol=1e-13):
     Re_arr: np.ndarray          = np.zeros(N, dtype=float)
     v_arr: np.ndarray           = np.zeros(N, dtype=float)
     Dh_arr: np.ndarray          = np.zeros(N, dtype=float)
+    info["F"]["rho_arr"]        = np.zeros(N, dtype=float)
 
     """
     Initial Conditions
@@ -140,6 +143,14 @@ def bartz_heat_transfer_1d(info: dict, max_iteration=100, tol=1e-13):
     T_coolant                   = float(T_f)
 
     converge_count = 0
+
+    dP = info["C"]["dP_arr"]
+    P_nodes = np.zeros(N)
+    P_nodes[0] = P_inlet
+    for o in range(1,N):
+        P_nodes[o] = P_nodes[o-1] + dP[o-1]
+
+    info["F"]["P_arr"] = P_nodes
 
     """March along x"""
     # March through all slices, i
@@ -162,20 +173,17 @@ def bartz_heat_transfer_1d(info: dict, max_iteration=100, tol=1e-13):
         T_slice_in      = float(T_coolant)
 
         # Pressure handling
-        P_slice_in = float(info["F"]["P"])
-        P_slice_out = float(info["F"]["P"]) # needs to be replaced once dP modeled
-
-        # Wall iteration guess
-        T_guess = T_slice_in
+        P_slice_in = np.sum(info["C"]["dP_arr"][:i]) + info["Injector"]["dP"]
+        P_slice_out = np.sum(info["C"]["dP_arr"][:i-1]) + info["Injector"]["dP"]
 
         # Last computed values for use after convergence
-        Q_i             = np.nan
+        Q_i             = 0.0
         R_w_c           = np.nan
         R_w_w           = np.nan
         R_hg_w          = np.nan
         h_coolant       = np.nan
         Nu = Re = Dh = Ah = V = n_ef = np.nan
-        T_coolant_out   = np.nan
+        T_coolant_out   = T_slice_in
         T_coolant_avg   = np.nan
         h_coolant_out   = np.nan
 
@@ -228,57 +236,114 @@ def bartz_heat_transfer_1d(info: dict, max_iteration=100, tol=1e-13):
             # Total resistance network
             R_total             = R_hg_w + R_w_w + R_w_c
             if R_total <= 0 or not np.isfinite(R_total):
-                raise ValueError(f"Invalid total resistance at i={i}, j={j}: R_total={R_total}")
+                raise ValueError(f"Invalid total resistance at i={i}, j={j}: R_total={R_total}\n"
+                                 f"R_hw_w: {R_hg_w:.2f}\n"
+                                 f"R_w_w: {R_w_w:.2f}\n"
+                                 f"R_w_c: {R_w_c:.2f}\n"
+                                 f"{h_coolant:.2f}\n"
+                                 f"{Ah:.2f}\n"
+                                 f"{n_ef:.2f}\n")
 
-            # Heat flux to coolant
-            Q_i                 = (Taw_i - T_guess) / R_total
+            P_bulk = 0.5 * (P_slice_in + P_slice_out)
 
-            # Temperature adjustment
-            if not energy_method:
-                # Temperature marching
-                cp_bulk          = float(info["F"]["cp"])
-                T_coolant_out    = T_slice_in + Q_i / (mdot_f * cp_bulk)
-                T_coolant_avg    = (T_slice_in + T_coolant_out) / 2
+            if energy_method:
+                # Energy method to get coolant out temp
+                h_coolant_out = h_slice_in + Q_i / mdot_f
+
+                # Convert that to temp
+                info["F"]["H"] = h_coolant_out
+                info["F"]["P"] = P_bulk
+                Fluid_Properties(dic=info, coolant_only=True)
+                T_coolant_out = info["F"]["T"]
 
             else:
-                # Enthalpy marching
-                h_coolant_out    = h_slice_in + Q_i / mdot_f
-                info["F"]["H"] = h_coolant_out
-                info["F"]["P"] = P_slice_out
-
+                # Temp method to get coolant out temp
+                cp_bulk = float(info["F"]["cp"])
+                T_coolant_out    = T_slice_in + Q_i / (mdot_f * cp_bulk)
+                info["F"]["T"] = T_coolant_out
+                info["F"]["P"] = P_bulk
                 Fluid_Properties(dic=info, coolant_only=True)
-                T_coolant_out    = info["F"]["T"]
-                T_coolant_avg    = 0.5 * (T_slice_in + T_coolant_out)
 
+            T_wall = T_coolant_out + Q_i * R_w_c
+            Q_new = (Taw_i - T_wall) / R_total\
 
-            residual             = abs(T_coolant_avg - T_guess)
+            residual = abs(Q_new - Q_i)
+            Q_i = Q_new
+
             if residual < tol:
-                converge_count += 1
                 break
 
-            T_guess             = T_coolant_avg
 
-
-            # Update values for next iteration
-            if energy_method:
-                P_bulk = 0.5 * (P_slice_in + P_slice_out)
-                h_bulk = 0.5 * (h_slice_in + h_coolant_out)
-                info["F"]["P"] = P_bulk
-                info["F"]["H"] = h_bulk
-                Fluid_Properties(dic=info, coolant_only=True)
-
-            else:
-                P_bulk = 0.5 * (P_slice_in + P_slice_out)
-                T_bulk = float(T_coolant_avg)
-                info["F"]["P"] = P_bulk
-                info["F"]["T"] = T_bulk
-                Fluid_Properties(dic=info, coolant_only=True)
+            #
+            #
+            #
+            # # Heat flux to coolant
+            #
+            # Q_i              = (Taw_i - T_guess) / R_total
+            #
+            #
+            #
+            # # Temperature adjustment
+            # if not energy_method:
+            #     # Temperature marching
+            #     cp_bulk          = float(info["F"]["cp"])
+            #     T_coolant_out    = T_slice_in + Q_i / (mdot_f * cp_bulk)
+            #     T_coolant_avg    = (T_slice_in + T_coolant_out) / 2
+            #
+            # else:
+            #     # Enthalpy marching
+            #     h_coolant_out    = h_slice_in + Q_i / mdot_f
+            #     info["F"]["H"] = h_coolant_out
+            #     info["F"]["P"] = P_slice_out
+            #     Fluid_Properties(dic=info, coolant_only=True)
+            #
+            #     try:
+            #         Tcrit = info["F"]["Tcrit"]
+            #         T_sat = info["F"]["Tsat"]
+            #         h_sat = info["F"]["Hsat"]
+            #
+            #         if T_sat is not None and Tcrit is not None:
+            #             if T_sat < Tcrit and h_coolant_out > h_sat:
+            #                 raise RuntimeError(
+            #                     f"Coolant boiling at i={i}: "
+            #                     f"h_out={h_coolant_out:.3e} > h_sat={h_sat:.3e}, "
+            #                     f"P={P_slice_out:.2e}, Tsat={T_sat:.1f} K"
+            #                 )
+            #
+            #     except ValueError:
+            #         print("passing")
+            #         pass
+            #
+            #     T_coolant_out    = info["F"]["T"]
+            #     T_coolant_avg    = 0.5 * (T_slice_in + T_coolant_out)
+            #
+            #
+            # residual             = abs(T_coolant_avg - T_guess)
+            # if residual < tol:
+            #     converge_count += 1
+            #     break
+            #
+            # T_guess             = T_coolant_avg
+            #
+            #
+            # # Update values for next iteration
+            # if energy_method:
+            #     P_bulk = 0.5 * (P_slice_in + P_slice_out)
+            #     h_bulk = 0.5 * (h_slice_in + h_coolant_out)
+            #     info["F"]["P"] = P_bulk
+            #     info["F"]["H"] = h_bulk
+            #
+            # else:
+            #     P_bulk = 0.5 * (P_slice_in + P_slice_out)
+            #     T_bulk = float(T_coolant_avg)
+            #     info["F"]["P"] = P_bulk
+            #     info["F"]["T"] = T_bulk
+            #
+            # Fluid_Properties(dic=info, coolant_only=True)
 
         # ========================== #
         # == COMMIT SLICE RESULTS == #
         # ========================== #
-
-        T_coolant = float(T_coolant_out)
         T_c_out[i] = T_coolant_out
         Q_dot[i] = float(Q_i)
 
@@ -297,9 +362,15 @@ def bartz_heat_transfer_1d(info: dict, max_iteration=100, tol=1e-13):
         T_wall_coolant[i] = T_coolant_out + Q_i * R_w_c
         T_wall_gas[i] = T_wall_coolant[i] + Q_i * R_w_w
 
+        info["F"]["rho_arr"][i] = info["F"]["rho"]
+
         # Advance coolant enthalpy for next slice
         if energy_method:
             info["F"]["H"] = float(h_coolant_out)
+
+        else:
+            info["F"]["T"] = T_coolant_out
+        T_coolant = info["F"]["T"]
 
 
     Q_total = np.sum(Q_dot)
@@ -405,15 +476,8 @@ def dittus_appro(dx:float, dic:dict, dimension: int, step: int):
     """
     i = step
 
-    # Update some fluid properties if necessary
-    # Only for 0 dimensional/constant coolant temp
-    if dimension != 0:
-        Fluid_Properties(dic=dic, coolant_only=True)
-
-
     rho, mu, k, cp, Pr, mdot = (dic["F"]["rho"], dic["F"]["mu"], dic["F"]["k"], dic["F"]["cp"],
                                 dic["F"]["Pr"], dic["F"]["mdot"])
-
 
     y = dic["E"]["y"][i]
     k_wall = dic["W"]["k"]
@@ -422,7 +486,6 @@ def dittus_appro(dx:float, dic:dict, dimension: int, step: int):
         num_ch = dic["C"]["num_ch"]
         type, thickness_w, spacing, height = (dic["C"]["Type"].lower(), dic["W"]["thickness"],
                                                      dic["C"]["spacing"], dic["C"]["height"])
-
 
     else:
         raise ValueError(f"Number of channels is not defined")
@@ -460,76 +523,90 @@ def dittus_appro(dx:float, dic:dict, dimension: int, step: int):
         # Heat Transfer coefficient
         h_f = Nu * k / Dh
 
+        if np.isnan(h_f):
+            raise ValueError(f"h_f is not defined\n"
+                             f"Nu = {Nu}\n"
+                             f"k = {k}\n"
+                             f"Dh = {Dh}\n"
+                             f"Re = {Re}\n"
+                             f"cp = {cp}\n"
+                             f"mu = {mu}\n"
+                             f"Pr = {Pr}\n")
+
+
         return h_f, Nu, Re, Dh, A_cyl, V, n_ef
-
-
-    elif type == "Square":
-        a = dic["C"]["height"]
-        Ah = np.pi / num_ch * (height**2 + 2*y*height + 2*thickness_w*height) - (spacing*height)
-        A = a**2
-
-        # Local exposed fin area
-        A_f = 2 * height * dx
-
-        # Total area exposed to coolant
-        A_fs = (num_ch * A_f) + (dx * (2 * np.pi * (y + thickness_w) - (num_ch * spacing)))
-
-        # Wetted perimeter
-        P_wet = 2 * ((np.pi / num_ch * (2*y + 2*thickness_w + height)) - spacing + height)
-
-        # Hydraulic Diameter
-        Dh = 4 * Ah / P_wet
-
-        if Dh <= 0:
-            raise ValueError(f"Hydraulic Diameter must be positive: {Dh:.4f}, Ah: {Ah:.4f}, P_wet: {P_wet:.4f}")
-
-        # Calculate reynolds using mass flux to avoid using velocity
-        if mdot is not None and Ah is not None:
-            # G = mdot / (Ah * num_ch)
-            # Re = G * Dh / mu
-            v = mdot/ num_ch / rho / Ah
-            Re = rho * v * Dh / mu
-
-        else:
-            raise ValueError("Need fuel mass flow rate and channel area (flow area) "
-                             "to determine convective heat transfer coefficient")
-
-        Nu_lam = 4.36
-
-        # Turbulent Gnielinksi
-        f = (0.79*np.log(Re) - 1.64)**-2
-        Nu_turb = ((f / 8.0) * (Re - 1000) * Pr) / (1.0 + 12.7 * np.sqrt(f / 8) * (Pr ** (2 / 3) - 1.0))
-
-        Re1, Re2 = 2000, 5000
-        w = (Re - Re1) / (Re2 - Re1)
-        w = max(0.0, min(1.0, w))
-        Nu = (1-w)* Nu_lam + w*Nu_turb
-
-        h_f = Nu * k / Dh
-        # h_f = 0.023*Re**0.8*Pr**0.4*(k / Dh)
-
-
-        # Single fin efficiency
-        if spacing <= 0 or not np.isfinite(spacing):
-            raise ValueError(f"Invalid fin thickness (spacing): {spacing}")
-
-        if k_wall <= 0 or not np.isfinite(k_wall):
-            raise ValueError(f"Invalid wall conductivity: {k_wall}")
-
-        if h_f < 0 or not np.isfinite(h_f):
-            raise ValueError(f"Invalid coolant HTC: {h_f}")
-
-        m = np.sqrt(2 * h_f / k_wall / spacing)
-        n_f = np.tanh(m * height) / (m * height)
-
-        # Finset efficiency
-        n_fs = 1 - (num_ch * A_f / A_fs) * (1 - n_f)
-        return h_f, Nu, Re, A_fs, n_fs, v, Dh, h_f
-
 
     elif type == "circle":
         Dh = dic["C"]["width"]
         Ah = np.pi * (Dh/2)**2
 
+
+
+def pressure_drop_assessment(data: dict):
+    """
+    This function requires a FULL coolant passage geometry sweep
+    Will perform a simple darcy-weisbach sweep to determine the pressure drop
+    through only the regen channels. This will not assess the minor losses.
+
+    Assumptions for first pass:
+        1. constant temperature->density/viscosity
+    """
+
+    # == STORAGE == #
+    mdot        = data["F"]["mdot"] / data["C"]["num_ch"]
+    rho         = data["F"]["rho"]
+    rho_arr     = data["F"]["rho_arr"]
+    if len(rho_arr) != 0:
+        rho     = rho_arr
+
+    mu          = data["F"]["mu"]
+    depth       = data["C"]["depth_arr"]
+    width       = data["C"]["width_arr"]
+    eps         = 1e-5
+    dx          = data["E"]["dx"]
+
+    # == Geometric Characteristics == #
+    Pw          = 2 * (depth + width)
+    A           = depth * width
+    Dh          = 4 * A / Pw
+
+    # == Flow Characteristics == #
+    V           = mdot / (rho * A)
+    Re          = rho * V * Dh / mu
+    eps_dh      = eps / Dh
+
+    f = np.zeros_like(Re)
+    for i in range(len(Re)):
+        # Laminar
+        if Re[i] < 2300:
+            f[i] = 64 / Re[i]
+
+        # Transient
+        elif 2300 < Re[i] < 4000:
+            # Treat conservatively
+            # Do a blend of the two
+            f_turb = Moody_plot(eps_dh[i], Re[i])
+            f_lam = 64/Re[i]
+            w = (Re[i] - 2300) / (4000 - 2300)
+            f[i] = (1 - w)*f_lam + w*f_turb
+
+        # Turbulent
+        else:
+            # From moody
+            f[i] = Moody_plot(eps_dh=eps_dh[i], Re=Re[i])
+
+    dP_array    = f * (dx/Dh) * (rho * V**2 / 2)
+    sum_array   = dP_array.sum()
+
+    data["C"]["dP_arr"] = dP_array
+    data["C"]["dP"]     = sum_array
+
+    # print(f"From: {type(rho)} there is a {sum_array:.2f} dP")
+
+    data["F"]["P"] = data["Injector"]["dP"] + dP_array.sum()
+    if data["Solver"]["EnergyMethod"]:
+        data["Solver"]["EnergyMethod"] = False
+        Fluid_Properties(dic=data)
+        data["Solver"]["EnergyMethod"] = True
 
 

@@ -159,6 +159,7 @@ def First_Modal_Analysis(data: dict):
     # This does not use modal or frequency based analysis
     P_c_stag = data["E"]["Pc"]
     dP_injector = data["Injector"]["dP"]
+    dP_injector = dP_injector if dP_injector is not None else 1.2*P_c_stag
     mdot = data["E"]["mdot"]
 
     # Injector delay phase check
@@ -398,7 +399,7 @@ def Startup_Analysis(data: dict):
 
 
 def CoolantSizingGuide(data: dict, fos_temp: float = 0.95, deposit_hg: float = 0, coolant_bulk_temp: float = 350,
-                       tol: float = 1e-6, display:bool = True):
+                       tol: float = 1e-6, display:bool = False):
     """
     Drives the requirements for a properly cooled engine relying ONLY on regenerative cooling
     Derived from chapter 4 of H&H and specifically problem 4
@@ -411,14 +412,15 @@ def CoolantSizingGuide(data: dict, fos_temp: float = 0.95, deposit_hg: float = 0
     frmt2               = "{:<50} {:<10} {:<10} {:<}"
     frmte               = "{:<50} {:<10.3e} {:<10} {:<}"
 
-    x = data["E"]["x"]
+    x                   = data["E"]["x"]
     if x is None:
-        x, y, a = build_nozzle(data=data)
+        x, y, a         = build_nozzle(data=data)
     Fluid_Properties(dic=data, coolant_only=True)
     HotGas_Properties(dic=data, channel=True)
 
-    max_wall_temp = data["W"]["solidus"] * fos_temp
-    geom = data["C"]["Type"].lower()
+    max_wall_temp       = data["W"]["solidus"] * fos_temp
+    data["W"]["max_wall_temp"] = max_wall_temp
+    geom                = data["C"]["Type"].lower()
 
 
     if display:
@@ -428,57 +430,57 @@ def CoolantSizingGuide(data: dict, fos_temp: float = 0.95, deposit_hg: float = 0
         print(frmt.format("Max Wall Temp Used", max_wall_temp, "K", "|"))
         print(frmt2.format("Geometry Type", geom.title(), "", "|"))
 
-    mdot = data["F"]["mdot"]
-    Pc = data["E"]["Pc"]
-    gamma = data["H"]["gamma"]
-    R = data["H"]["R"]
-    Tc = data["E"]["Tc"]
-    mu = data["H"]["mu"][1]
-    cstar_act = data["H"]["cstar"]
-    Dt = data["E"]["r_throat"]*2
-    i = data["C"]["pass"]
-    t_wall = data["W"]["thickness"]
+    mdot                = data["F"]["mdot"]
+    Pc                  = data["E"]["Pc"]
+    gamma               = data["H"]["gamma"]
+    R                   = data["H"]["R"]
+    Tc                  = data["E"]["Tc"]
+    mu                  = data["H"]["mu"][1]
+    cstar_act           = data["H"]["cstar"]
+    Dt                  = data["E"]["r_throat"]*2
+    i                   = data["C"]["pass"]
+    t_wall              = data["W"]["thickness"]
 
     # Hot gas information
-    cstar_idl = np.sqrt(gamma*Tc*R) / (gamma*(2/(gamma+1))**((gamma+1)/(2*(gamma-1))))
-    correction_factor = cstar_act / cstar_idl
-    Tc_adjusted = Tc * correction_factor**2
-    cp = gamma*R / (gamma-1)
-    Pr = 4*gamma / (9*gamma - 5)
-    mean_throat_radius = (data["E"]["r_exit"] + data["E"]["r_entry"]) / 2
+    cstar_idl           = np.sqrt(gamma*Tc*R) / (gamma*(2/(gamma+1))**((gamma+1)/(2*(gamma-1))))
+    correction_factor   = cstar_act / cstar_idl
+    Tc_adjusted         = Tc * correction_factor**2
+    cp                  = gamma*R / (gamma-1)
+    Pr                  = 4*gamma / (9*gamma - 5)
+    mean_throat_radius  = (data["E"]["r_exit"] + data["E"]["r_entry"]) / 2
 
     # Gas side heat flux using Bartz correlation
     # Only concerned with throat as this is the highest heat flux
     # Therefor all corrections and area corrections become 1.0
-    h_hg = (0.026/Dt**0.2) * (mu**0.2*cp/Pr**0.6) * (Pc/cstar_act)**0.8 * (Dt/mean_throat_radius)**0.1
-    h_hg = 1 / (1/h_hg + deposit_hg)
+    h_hg                = (0.026/Dt**0.2) * (mu**0.2*cp/Pr**0.6) * (Pc/cstar_act)**0.8 * (Dt/mean_throat_radius)**0.1
+    h_hg                = 1 / (1/h_hg + deposit_hg)
 
 
     # Required heat flux
-    q_req = (Tc_adjusted - max_wall_temp) * h_hg
+    q_req               = (Tc_adjusted - max_wall_temp) * h_hg
 
     # Wall properties
-    k_wall = data["W"]["k"]
-    t_wall_coolant = data["C"]["wall_thickness"]
+    k_wall              = data["W"]["k"]
+    t_wall_coolant      = data["C"]["wall_thickness"]
     if geom == "circle":
-        T_wall_coolant = max_wall_temp - (q_req * t_wall_coolant / k_wall)
+        T_wall_coolant  = max_wall_temp - (q_req * t_wall_coolant / k_wall)
     elif geom == "square":
-        T_wall_coolant = max_wall_temp - (q_req * t_wall / k_wall)
+        T_wall_coolant  = max_wall_temp - (q_req * t_wall / k_wall)
 
-# Coolant midpoint bulk temp
+    # Coolant midpoint bulk temp
     # Coolant temp around throat region
-    h_coolant = q_req / (T_wall_coolant - coolant_bulk_temp)
-    cool_orig = data["F"]["T"]
-    data["F"]["T"] = T_wall_coolant
+    h_coolant           = q_req / (T_wall_coolant - coolant_bulk_temp)
+    cool_orig           = data["F"]["T"]
+    data["F"]["T"]      = T_wall_coolant
     Fluid_Properties(dic=data, coolant_only=True)
-    mu_wall_coolant = data["F"]["mu"]
+    mu_wall_coolant     = data["F"]["mu"]
 
-    data["F"]["T"] = coolant_bulk_temp
+    data["F"]["T"]      = coolant_bulk_temp
     Fluid_Properties(dic=data, coolant_only=True)
-    mu_bulk_coolant = data["F"]["mu"]
-    cp_bulk_coolant = data["F"]["cp"]
-    k_bulk_coolant = data["F"]["k"]
-    data["F"]["T"] = cool_orig
+    mu_bulk_coolant     = data["F"]["mu"]
+    cp_bulk_coolant     = data["F"]["cp"]
+    k_bulk_coolant      = data["F"]["k"]
+    data["F"]["T"]      = cool_orig
 
     # # Sample Question verification
     # mdot = 827
@@ -492,64 +494,61 @@ def CoolantSizingGuide(data: dict, fos_temp: float = 0.95, deposit_hg: float = 0
     # geom = "circle"
     # i = 1
 
-    term1_no_d = (mdot*i/mu_bulk_coolant)**0.8
-    term2 = (mu_bulk_coolant * cp_bulk_coolant / k_bulk_coolant)**0.4
-    term3 = (mu_bulk_coolant/mu_wall_coolant)**0.14
+    term1_no_d          = (mdot * i / mu_bulk_coolant)**0.8
+    term2               = (mu_bulk_coolant * cp_bulk_coolant / k_bulk_coolant)**0.4
+    term3               = (mu_bulk_coolant / mu_wall_coolant)**0.14
 
-    nu_right = 0.0214*term1_no_d*term2*term3
-    nu_left = h_coolant / k_bulk_coolant
+    nu_right            = 0.0214 * term1_no_d * term2 * term3
+    nu_left             = h_coolant / k_bulk_coolant
 
     def secant_d_residual(d_i, geom_i):
-        c_i = None
+        c_i             = None
         if geom_i == "circle":
-            N_i = np.pi * (Dt + 0.8*(d_i + 2*t_wall_coolant)) / (d_i + 2*t_wall_coolant)
-            A_i = np.pi * d_i**2 / 4
-            Dh = d_i
-            c_i = Dh / N_i / A_i
+            N_i         = np.pi * (Dt + 0.8*(d_i + 2*t_wall_coolant)) / (d_i + 2*t_wall_coolant)
+            A_i         = np.pi * d_i**2 / 4
+            Dh          = d_i
+            c_i         = Dh / N_i / A_i
         elif geom_i == "square":
-            # N_i = np.pi * (Dt + 0.8*(d_i + 2*t_wall_coolant)) / (d_i + 2*t_wall_coolant)
-            # N_i = np.pi * Dt / (d_i + t_wall_coolant)
-            N_i = np.pi * (Dt + 2 * t_wall + d_i) / (2 * d_i)
-            A_i = d_i ** 2
-            Dh = d_i
-            c_i = Dh / N_i / A_i
+            N_i         = np.pi * (Dt + 2 * t_wall + d_i) / (2 * d_i)
+            A_i         = d_i ** 2
+            Dh          = d_i
+            c_i         = Dh / N_i / A_i
 
-        left_side = nu_left * d_i
-        right_side = nu_right * c_i**0.8
+        left_side       = nu_left * d_i
+        right_side      = nu_right * c_i**0.8
         return left_side - right_side
 
-    d_0 = 0.0005
+    d_0                 = 0.0005
     # Small secant offset
-    d = d_0 * 1.1
+    d                   = d_0 * 1.1
     # Iterate to find the true value of the diameter
-    f_0 = secant_d_residual(d_0, geom_i=geom)
+    f_0                 = secant_d_residual(d_0, geom_i=geom)
 
     for i in range(100):
-        f = secant_d_residual(d, geom_i=geom)
+        f               = secant_d_residual(d, geom_i=geom)
 
         if abs(f) < tol:
             break
 
         # Secant update
-        d_1 = d - f * (d-d_0)/(f-f_0 + 1e-12)
+        d_1             = d - f * (d-d_0)/(f-f_0 + 1e-12)
 
         # Physical guardrail
-        d_1 = max(d_1, 1e-6)
+        d_1             = max(d_1, 1e-6)
         # Update
-        d_0, f_0 = d, f
-        d = d_1
+        d_0, f_0        = d, f
+        d               = d_1
 
-    d_inner = round(d,6)
-
+    d_inner             = round(d, 6)
 
     if geom == "circle":
-        N = np.pi * (Dt + 0.8 * (d_inner + 2 * t_wall_coolant)) / (d_inner + 2 * t_wall_coolant)
-        N = np.floor(N)
-        d_outer = Dt / (N / np.pi - 0.8)
-        d_inner = d_outer - 2 * t_wall_coolant
-        data["C"]["spacing"] = d_inner
-        data["C"]["height"] = d_inner
-        data["C"]["num_ch"] = N
+        N               = np.pi * (Dt + 0.8 * (d_inner + 2 * t_wall_coolant)) / (d_inner + 2 * t_wall_coolant)
+        N               = np.floor(N)
+        d_outer         = Dt / (N / np.pi - 0.8)
+        d_inner         = d_outer - 2 * t_wall_coolant
+        data["C"]["spacing"]    = d_inner
+        data["C"]["height"]     = d_inner
+        data["C"]["num_ch"]     = N
         data["C"]["throat_bulk_temp"] = coolant_bulk_temp
         if display:
             print(frmt.format("Number of Channels", N, "", "|"))
@@ -561,13 +560,13 @@ def CoolantSizingGuide(data: dict, fos_temp: float = 0.95, deposit_hg: float = 0
             print(frmt.format("Coolant Bulk Temp", coolant_bulk_temp, "K", "|"))
 
     elif geom == "square":
-        N = np.pi * (Dt + 2*t_wall + d_inner) / (2*d_inner)
-        N = np.floor(N)
-        d = np.pi * (Dt + 2*t_wall) / (2*N - np.pi)
-        data["C"]["spacing"] = d
-        data["C"]["height"] = d
-        data["C"]["depth"] = d
-        data["C"]["num_ch"] = N
+        N               = np.pi * (Dt + 2*t_wall + d_inner) / (2*d_inner)
+        N               = np.floor(N)
+        d               = np.pi * (Dt + 2*t_wall) / (2*N - np.pi)
+        data["C"]["spacing"]    = d
+        data["C"]["height"]     = d
+        data["C"]["depth"]      = d
+        data["C"]["num_ch"]     = N
         data["C"]["throat_bulk_temp"] = coolant_bulk_temp
         if display:
             print(frmt.format("Number of Channels", N, "", "|"))
