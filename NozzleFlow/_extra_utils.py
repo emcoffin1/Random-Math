@@ -292,7 +292,7 @@ def data_display(data: dict):
     print("- " * 36, f"{'|':<}")
     print(frmt.format("Max Wall Temp Used", data["W"]["max_wall_temp"], "K", "|"))
     print(frmt2.format("Geometry Type", data["C"]["Type"].title(), "", "|"))
-    print(frmt.format("Pressure Drop Through Channels", data["C"]["dP"]/1000, "kPa", "|"))
+    print(frmt.format("Pressure Drop Through Channels", data["C"]["dP"]/1e6, "MPa", "|"))
     print(frmt.format("Fuel Inlet Pressure", data["F"]["StartingPressure"]/1e6, "MPa", "|"))
 
     if data["C"]["Type"].lower() == "circle":
@@ -306,8 +306,12 @@ def data_display(data: dict):
 
     elif data["C"]["Type"].lower() == "square":
         print(frmt.format("Number of Channels", data["C"]["num_ch"], "", "|"))
-        print(frmt.format("Edge Length", data["C"]["spacing"] * 1000, "mm", "|"))
-        print(frmt.format("Edge Depth", data["C"]["spacing"] * 1000, "mm", "|"))
+        print(frmt2.format("Edge Width", "", "", "|"))
+        print(frmt.format("     Throat", data["C"]["height"] * 1000, "mm", "|"))
+        print(frmt.format('     Minimum', np.min(data["C"]["width_arr"]) * 1000, "mm", "|"))
+        print(frmt2.format("Edge Depth", "","","|"))
+        print(frmt.format("     Throat", data["C"]["spacing"] * 1000, "mm", "|"))
+        print(frmt.format('     Minimum', np.min(data["C"]["depth_arr"]) * 1000, "mm", "|"))
         print(frmt.format("Fin Thickness", data["C"]["spacing"] * 1000, "mm", "|"))
         print(frmt.format("Wall Thickness", data["W"]["thickness"] * 1000, "mm", "|"))
         print(frmte.format("Channel Area", data["C"]["spacing"] ** 2, "m", "|"))

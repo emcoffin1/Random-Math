@@ -47,8 +47,10 @@ def isp_getter(fuel, ox, plot=True):
     OF = np.linspace(1, 5, 500)
     pc = 2.5e6* 0.000145038
     for i in OF:
-        result_isp.append(CEA.get_Isp(Pc=pc, MR=i))
+        isp, _ = CEA.estimate_Ambient_Isp(Pc=200, MR=i)
+        result_isp.append(isp)
         # result_isp.append(CEA.get_Tcomb(Pc=i, MR=2.66))
+
 
     idx = np.argmax(result_isp)
     of_best = OF[idx]
@@ -68,7 +70,10 @@ def isp_getter(fuel, ox, plot=True):
     #
     if plot:
         plt.plot(OF, result_isp)
-        plt.axvline(of_stoich, color='r')
+        plt.axvline(of_stoich, color='r', label="Stoich")
+        plt.axvline(of_best, color='g', label="Best")
+        plt.axvline(2.1, color="b", label="Ours")
+        plt.legend()
         plt.show()
 
     return of_best, result_isp[idx]
@@ -194,6 +199,6 @@ def rocket_eqn_analysis(fuel, ox, alt: int, of, isp, T_W_ratio: float = 6, m0: f
 
 
 if __name__ == "__main__":
-    # isp_getter(fuel="Kerosene", ox="O2")
-    of, isp = isp_getter(fuel="Kerosene", ox="LOX")
-    rocket_eqn_analysis(fuel="Kerosene", ox="LOX", alt=1, isp=isp, of=of)
+    isp_getter(fuel="Kerosene", ox="O2")
+    # of, isp = isp_getter(fuel="Kerosene", ox="LOX")
+    # rocket_eqn_analysis(fuel="Kerosene", ox="LOX", alt=1, isp=isp, of=of)

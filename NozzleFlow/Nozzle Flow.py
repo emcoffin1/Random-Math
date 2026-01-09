@@ -84,6 +84,10 @@ def main_basic(data: dict, nozzle_build: bool = True, display=True):
     energy_plot         = data["Display"]["EnergyPlot"]
     contour_plot        = data["Display"]["ContourPlot"]
 
+    # ============================ #
+    # == FORMULATE THE GEOMETRY == #
+    # ============================ #
+
     if nozzle_build:
         # Build nozzle
         x, y, a         = build_nozzle(data=data)
@@ -104,7 +108,10 @@ def main_basic(data: dict, nozzle_build: bool = True, display=True):
     ind                 = np.where(eps == 1.0)[0][0]
     eps[:ind]           *= -1
 
+    # ================================== #
     # == ISENTROPIC FLOW CALCULATIONS == #
+    # ================================== #
+
     isentropic_nozzle_flow(eps=eps, data=data)
     eps                 = abs(eps)
     data["E"]["aspect_ratio"] = eps
@@ -147,7 +154,7 @@ if __name__ == '__main__':
             "Solver": {
                 "CEA": True,
                 "IterateCooling": False,
-                "IteratePressureDrop": True,
+                "IteratePressureDrop": False,
                 "FilmCool": False,
                 "EnergyMethod": True,
                 "HeatSolver": True,
@@ -155,18 +162,18 @@ if __name__ == '__main__':
             "Display": {
                 "PrintOut": True,
                 "EnginePlot": "no",
-                "FlowPlot": False,
-                "EnergyPlot": False,
+                "FlowPlot": True,
+                "EnergyPlot": True,
                 "ChannelPlot": False,
                 "ContourPlot": True,
             },
             "CEA_obj": object,
             "E": {
-                "Pc": 2.5e6,  # Chamber Pressure [Pa]
+                "Pc": 2.03e6,  # Chamber Pressure [Pa]
                 "Pe": 101325,  # Ambient Pressure (exit) [Pa]
                 "Tc": None,  # Chamber temp [K]
-                "mdot": 1.97,  # Mass Flow Rate [kg/s]
-                "OF": 2.69,
+                "mdot": 1.87,  # Mass Flow Rate [kg/s]
+                "OF": 2.8,
                 "size": 0.8,
                 "CR": 6,
                 "Lc": None,
