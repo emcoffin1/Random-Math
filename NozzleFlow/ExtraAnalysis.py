@@ -416,7 +416,8 @@ def CoolantSizingGuide(data: dict, fos_temp: float = 0.95, deposit_hg: float = 0
     if x is None:
         x, y, a         = build_nozzle(data=data)
     Fluid_Properties(dic=data, coolant_only=True)
-    HotGas_Properties(dic=data, channel=True)
+    if data["F"]["k"] is None:
+        HotGas_Properties(dic=data, channel=True)
 
     max_wall_temp       = data["W"]["solidus"] * fos_temp
     data["W"]["max_wall_temp"] = max_wall_temp

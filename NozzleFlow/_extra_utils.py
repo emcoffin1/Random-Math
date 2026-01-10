@@ -201,7 +201,7 @@ def Moody_plot(eps_dh: float, Re: float):
 
 
 def data_display(data: dict):
-    os.system("cls" if os.name == "nt" else "clear")
+    # os.system("cls" if os.name == "nt" else "clear")
     frmt                = "{:<50} {:<10.3f} {:<10} {:<}"
     frmt2               = "{:<50} {:<10} {:<10} {:<}"
     frmte               = "{:<50} {:<10.3e} {:<10} {:<}"

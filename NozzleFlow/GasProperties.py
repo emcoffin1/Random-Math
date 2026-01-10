@@ -31,6 +31,7 @@ def HotGas_Properties(dic, eps=None, forced=False, channel=False):
     cea = dic["CEA_obj"]
     Pc_psi = Pc * 0.000145038
 
+
     Tc = dic["E"]["Tc"]
     if Tc is None:
         dic["E"]["Tc"] = cea.get_Tcomb(Pc=Pc_psi, MR=OF) * 5/9
@@ -109,7 +110,7 @@ def HotGas_Properties(dic, eps=None, forced=False, channel=False):
     dic["H"]["Pr"] = Pr
     dic["H"]["cstar"] = cstar
     dic["H"]["R"] = R
-    dic["H"]["MW"] = mw
+    dic["H"]["MW"] = mw*0.453592
 
 
 

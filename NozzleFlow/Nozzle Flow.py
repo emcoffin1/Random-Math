@@ -169,12 +169,12 @@ if __name__ == '__main__':
             },
             "CEA_obj": object,
             "E": {
-                "Pc": 2.03e6,  # Chamber Pressure [Pa]
+                "Pc": 2.5e6,  # Chamber Pressure [Pa]
                 "Pe": 101325,  # Ambient Pressure (exit) [Pa]
                 "Tc": None,  # Chamber temp [K]
-                "mdot": 1.87,  # Mass Flow Rate [kg/s]
-                "OF": 2.8,
-                "size": 0.8,
+                "mdot": 1.785,  # Mass Flow Rate [kg/s]
+                "OF": 2.19,
+                "size": 1.0,
                 "CR": 6,
                 "Lc": None,
                 "x": None,
@@ -262,13 +262,6 @@ if __name__ == '__main__':
         # Run rocketcea
         init_cea(data=info)
         HotGas_Properties(dic=info)
-        # if info["Solver"]["EnergyMethod"]:
-        #     info["Solver"]["EnergyMethod"] = False
-        #     Fluid_Properties(dic=info)
-        #     info["Solver"]["EnergyMethod"] = True
-        # else:
-        #     Fluid_Properties(dic=info)
-
         Fluid_Properties(dic=info)
         Material_Properties(dic=info)
 

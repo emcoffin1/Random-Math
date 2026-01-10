@@ -217,6 +217,7 @@ def bartz_heat_transfer_1d(info: dict, max_iteration=100, tol=1e-13):
 
             # Adiabatic wall temperature
             Taw_i               = Tc * (1 + r_rec * (gamma[i]-1)/2 * M[i]**2) / (1 + (gamma[i]-1)/2 * M[i]**2)
+            # Taw_i               = Taw_i - 0.15*(Taw_i - 400)
             Taw[i]              = Taw_i
 
             # Bartz convection coefficient approximation
@@ -273,73 +274,6 @@ def bartz_heat_transfer_1d(info: dict, max_iteration=100, tol=1e-13):
             if residual < tol:
                 break
 
-
-            #
-            #
-            #
-            # # Heat flux to coolant
-            #
-            # Q_i              = (Taw_i - T_guess) / R_total
-            #
-            #
-            #
-            # # Temperature adjustment
-            # if not energy_method:
-            #     # Temperature marching
-            #     cp_bulk          = float(info["F"]["cp"])
-            #     T_coolant_out    = T_slice_in + Q_i / (mdot_f * cp_bulk)
-            #     T_coolant_avg    = (T_slice_in + T_coolant_out) / 2
-            #
-            # else:
-            #     # Enthalpy marching
-            #     h_coolant_out    = h_slice_in + Q_i / mdot_f
-            #     info["F"]["H"] = h_coolant_out
-            #     info["F"]["P"] = P_slice_out
-            #     Fluid_Properties(dic=info, coolant_only=True)
-            #
-            #     try:
-            #         Tcrit = info["F"]["Tcrit"]
-            #         T_sat = info["F"]["Tsat"]
-            #         h_sat = info["F"]["Hsat"]
-            #
-            #         if T_sat is not None and Tcrit is not None:
-            #             if T_sat < Tcrit and h_coolant_out > h_sat:
-            #                 raise RuntimeError(
-            #                     f"Coolant boiling at i={i}: "
-            #                     f"h_out={h_coolant_out:.3e} > h_sat={h_sat:.3e}, "
-            #                     f"P={P_slice_out:.2e}, Tsat={T_sat:.1f} K"
-            #                 )
-            #
-            #     except ValueError:
-            #         print("passing")
-            #         pass
-            #
-            #     T_coolant_out    = info["F"]["T"]
-            #     T_coolant_avg    = 0.5 * (T_slice_in + T_coolant_out)
-            #
-            #
-            # residual             = abs(T_coolant_avg - T_guess)
-            # if residual < tol:
-            #     converge_count += 1
-            #     break
-            #
-            # T_guess             = T_coolant_avg
-            #
-            #
-            # # Update values for next iteration
-            # if energy_method:
-            #     P_bulk = 0.5 * (P_slice_in + P_slice_out)
-            #     h_bulk = 0.5 * (h_slice_in + h_coolant_out)
-            #     info["F"]["P"] = P_bulk
-            #     info["F"]["H"] = h_bulk
-            #
-            # else:
-            #     P_bulk = 0.5 * (P_slice_in + P_slice_out)
-            #     T_bulk = float(T_coolant_avg)
-            #     info["F"]["P"] = P_bulk
-            #     info["F"]["T"] = T_bulk
-            #
-            # Fluid_Properties(dic=info, coolant_only=True)
 
         # ========================== #
         # == COMMIT SLICE RESULTS == #
@@ -461,7 +395,7 @@ def bartz_approx(Taw, dic:dict, dimension: int, step: int, iteration: int):
         sigma1 = (0.5 * (Taw / Tc) * (1 + (gamma - 1) / 2 * Mi ** 2) + 0.5) ** -0.68
         sigma2 = (1 + (gamma - 1) / 2 * Mi ** 2) ** -0.12
 
-        h_hg = Nu * k / D *sigma1 * sigma2
+        h_hg = Nu * k / D * sigma1 * sigma2
 
         return h_hg
 
