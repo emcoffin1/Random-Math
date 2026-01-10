@@ -416,8 +416,7 @@ def CoolantSizingGuide(data: dict, fos_temp: float = 0.95, deposit_hg: float = 0
     if x is None:
         x, y, a         = build_nozzle(data=data)
     Fluid_Properties(dic=data, coolant_only=True)
-    if data["F"]["k"] is None:
-        HotGas_Properties(dic=data, channel=True)
+    HotGas_Properties(dic=data, channel=True)
 
     max_wall_temp       = data["W"]["solidus"] * fos_temp
     data["W"]["max_wall_temp"] = max_wall_temp
@@ -441,6 +440,7 @@ def CoolantSizingGuide(data: dict, fos_temp: float = 0.95, deposit_hg: float = 0
     Dt                  = data["E"]["r_throat"]*2
     i                   = data["C"]["pass"]
     t_wall              = data["W"]["thickness"]
+
 
     # Hot gas information
     cstar_idl           = np.sqrt(gamma*Tc*R) / (gamma*(2/(gamma+1))**((gamma+1)/(2*(gamma-1))))
@@ -471,6 +471,7 @@ def CoolantSizingGuide(data: dict, fos_temp: float = 0.95, deposit_hg: float = 0
     # Coolant midpoint bulk temp
     # Coolant temp around throat region
     h_coolant           = q_req / (T_wall_coolant - coolant_bulk_temp)
+
     cool_orig           = data["F"]["T"]
     data["F"]["T"]      = T_wall_coolant
     Fluid_Properties(dic=data, coolant_only=True)

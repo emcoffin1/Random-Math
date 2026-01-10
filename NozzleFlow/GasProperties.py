@@ -5,6 +5,10 @@ import CoolProp.CoolProp as CP
 import numpy as np
 from rocketprops.rocket_prop import get_prop
 
+"""
+https://coolprop.org/coolprop/HighLevelAPI.html#reference-states
+"""
+
 def init_cea(data):
     data["CEA_obj"] = CEA_Obj(
         oxName=data["O"]["Type"],

@@ -153,8 +153,8 @@ if __name__ == '__main__':
     info = {
             "Solver": {
                 "CEA": True,
-                "IterateCooling": False,
-                "IteratePressureDrop": False,
+                "IterateCooling": True,
+                "IteratePressureDrop": True,
                 "FilmCool": False,
                 "EnergyMethod": True,
                 "HeatSolver": True,

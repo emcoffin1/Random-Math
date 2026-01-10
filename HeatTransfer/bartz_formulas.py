@@ -169,6 +169,8 @@ def bartz_heat_transfer_1d(info: dict, max_iteration=100, tol=1e-13):
             raise ValueError(f"dx_i = {dx_i} must be positive!")
 
         # Coolant inlet state for this slice
+        # Uses the previous stations value UNLESS first slice
+        # In which stagnation conditions are used
         h_slice_in      = float(info["F"]["H"])
         T_slice_in      = float(T_coolant)
 
@@ -196,7 +198,9 @@ def bartz_heat_transfer_1d(info: dict, max_iteration=100, tol=1e-13):
             info["F"]["T"] = T_slice_in
             info["F"]["P"] = P_slice_in
 
-        Fluid_Properties(dic=info, coolant_only=True)
+        # Get stagnation conditions
+        if i == N-1:
+            Fluid_Properties(dic=info, coolant_only=True)
 
         # ==================================== #
         # == COOLANT TEMPERATURE ITERATIONS == #
@@ -256,6 +260,7 @@ def bartz_heat_transfer_1d(info: dict, max_iteration=100, tol=1e-13):
                 info["F"]["P"] = P_bulk
                 Fluid_Properties(dic=info, coolant_only=True)
                 T_coolant_out = info["F"]["T"]
+                cp_bulk = float(info["F"]["cp"])
 
             else:
                 # Temp method to get coolant out temp
@@ -266,10 +271,11 @@ def bartz_heat_transfer_1d(info: dict, max_iteration=100, tol=1e-13):
                 Fluid_Properties(dic=info, coolant_only=True)
 
             T_wall = T_coolant_out + Q_i * R_w_c
-            Q_new = (Taw_i - T_wall) / R_total\
+            Q_new = (Taw_i - T_wall) / R_total
 
             residual = abs(Q_new - Q_i)
             Q_i = Q_new
+
 
             if residual < tol:
                 break
@@ -310,7 +316,6 @@ def bartz_heat_transfer_1d(info: dict, max_iteration=100, tol=1e-13):
     Q_total = np.sum(Q_dot)
     dT_bulk = T_c_out[0] - T_c_out[-1]
     Q_from_bulk = mdot_f * cp_f * dT_bulk
-    # print(f"\nConservations: {((Q_total - Q_from_bulk)/Q_from_bulk*100):.2f} %")
 
     dic = {"h_hg": h_hg,
            "h_wc": h_wc,
@@ -326,8 +331,10 @@ def bartz_heat_transfer_1d(info: dict, max_iteration=100, tol=1e-13):
            "Re": Re_arr,
            "Dh": Dh_arr,}
 
-
-    print("\nCooling solution complete.", end="", flush=True)
+    # conserv = (Q_total - Q_from_bulk)/Q_from_bulk*100
+    # print(f"\nConservations: {((Q_total - Q_from_bulk)/Q_from_bulk*100):.2f} %")
+    # print(f"\nCooling solution complete with {conserv:.2f}% conservation.", end="", flush=True)
+    print(f"\nCooling solution complete.", end="", flush=True)
     print()
     # print(f"{(converge_count/N*100):.2f}% of slices converged")
     return dic
@@ -412,6 +419,9 @@ def dittus_appro(dx:float, dic:dict, dimension: int, step: int):
 
     rho, mu, k, cp, Pr, mdot = (dic["F"]["rho"], dic["F"]["mu"], dic["F"]["k"], dic["F"]["cp"],
                                 dic["F"]["Pr"], dic["F"]["mdot"])
+
+    # if i == len(dic["E"]["x"]):
+    #     rho = rho * (1+)
 
     y = dic["E"]["y"][i]
     k_wall = dic["W"]["k"]
@@ -532,13 +542,17 @@ def pressure_drop_assessment(data: dict):
     dP_array    = f * (dx/Dh) * (rho * V**2 / 2)
     sum_array   = dP_array.sum()
 
+    # Full channel pressure difference array
     data["C"]["dP_arr"] = dP_array
+    # Full channel pressure drop
     data["C"]["dP"]     = sum_array
 
-    # print(f"From: {type(rho)} there is a {sum_array:.2f} dP")
-
+    # Sets total pressure
     data["F"]["P"] = data["Injector"]["dP"] + dP_array.sum()
+
+    # Saves the inlet pressure of the coolant
     data["F"]["StartingPressure"] = data["F"]["P"]
+
     if data["Solver"]["EnergyMethod"]:
         data["Solver"]["EnergyMethod"] = False
         Fluid_Properties(dic=data)
