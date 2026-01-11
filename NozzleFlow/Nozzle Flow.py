@@ -228,7 +228,8 @@ if __name__ == '__main__':
                 # "Type": "Tungsten",
                 # "Type": "Copper Chromium",
                 "Type": "Inconel 718",
-                "thickness": 0.00025
+                "thickness": 0.00025,
+                "InitialTemp": 298,
             },
             "C": {
                 "Type": "Square",

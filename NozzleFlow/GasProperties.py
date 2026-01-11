@@ -14,6 +14,8 @@ def init_cea(data):
         oxName=data["O"]["Type"],
         fuelName=data["F"]["Type"],
     )
+    cea = CEA_Obj(oxName="O2", fuelName="Kerosene")
+    cea.get_Chamber_H()
 
     FLUID_MAP = {
         "LOX": "Oxygen",
@@ -80,6 +82,8 @@ def HotGas_Properties(dic, eps=None, forced=False, channel=False):
     cp = np.array(cp)
     gamma = np.array([gam_c, gam_t, gam_e])
 
+    H = cea.get_Chamber_H(Pc=Pc_psi, MR=OF) * 2.326
+
 
     # Expand to flowfield if present
     if "M" in dic["Flow"] or forced:
@@ -115,6 +119,7 @@ def HotGas_Properties(dic, eps=None, forced=False, channel=False):
     dic["H"]["cstar"] = cstar
     dic["H"]["R"] = R
     dic["H"]["MW"] = mw*0.453592
+    dic["H"]["H"] = H
 
 
 
