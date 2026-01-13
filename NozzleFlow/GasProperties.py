@@ -100,7 +100,6 @@ def HotGas_Properties(dic, eps=None, forced=False, channel=False):
         dic["H"]["gamma"] = gamma_M(M)
         dic["H"]["k"] = k_M(M)
 
-
     else:
 
         dic["H"]["mu"] = mu
