@@ -212,6 +212,7 @@ def Fluid_Properties(dic: dict, coolant_only=False):
 def Material_Properties(dic: dict):
     """Manual input of multiple materials for easy reference"""
     material = dic["W"]["Type"]
+    T = dic["W"]["T"] # K
 
     if material == "SS 304":
         cp = 500            # J/kg-K
@@ -257,6 +258,26 @@ def Material_Properties(dic: dict):
         yield_strength = 120e6  # Pa
         E = 110e9  # Pa
         k = 300  # W/m-K
+
+    elif material == "GRCop-42":
+        """https://additivemanufacturingllc.com/wp-content/uploads/2023/03/GRCop-42.pdf"""
+        """https://velo3d.com/wp-content/uploads/2024/04/Velo3D-GRCop-42-Material-Datasheet.pdf"""
+        """https://www.sciencedirect.com/science/article/pii/S2352492823013569"""
+        if T is not None:
+            # These are accurate to around 1000K,
+            # everything after is extrapolated and assumed to fit on the same curve
+            T = T / 1000
+            cp = 0.153*T**3 - 0.33*T**2 + 0.312*T + 0.316
+            k = -39.86 * T ** 3 + 4.17 * T ** 2 + 0.97 * T + 329.14
+        else:
+            cp = 0  # J/kg-K
+            k = 315  # W/m-K
+        solidus = 0  # K
+        liquidus = 0  # K
+        rho = 8890  # kg/m3
+        yield_strength = 3.585e+8  # Pa
+        E = 129.7e9  # Pa
+        roughness = 2e-5  # m
 
 
     else:

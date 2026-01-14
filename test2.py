@@ -6,4 +6,5 @@ for i in range(len(a)-1, -1, -1):
 
 print(CP.PropsSI("viscosity", "P", 101325, "H", 0, "n-Dodecane"))
 
-
+for j in range(2):
+    print(j)

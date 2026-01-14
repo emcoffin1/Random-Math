@@ -2,8 +2,10 @@ import numpy as np
 import CoolProp.CoolProp as CP
 from CoolProp.CoolProp import PropsSI, AbstractState
 
+from NozzleFlow.GasProperties import Material_Properties
 
-def heat_transfer_solver(data: dict, max_iter=50):
+
+def heat_transfer_solver(data: dict, max_iter=50, tol=1e-2):
 
     # ============ #
     # == SOLVER == #
@@ -20,6 +22,8 @@ def heat_transfer_solver(data: dict, max_iter=50):
     depth:  dict        = data["C"]["depth_arr"]
     width:  dict        = data["C"]["width_arr"]
     num_ch: float       = data["C"]["num_ch"]
+    t_wall: float       = data["W"]["thickness"]
+    k_wall: float       = data["W"]["k"]
 
     # == dx Setup == #
     dx_seg                      = np.diff(x)
@@ -107,6 +111,11 @@ def heat_transfer_solver(data: dict, max_iter=50):
         # dx_i = dx_i_arr[i]
         dx_i = np.sqrt((y[i] - y[i+1])**2 + (x[i] - x[i+1])**2)
 
+        # Initial slice temps
+        T_c_w_old = T_wall_c
+        T_hg_w_old = T_wall_hg
+        T_c_old = T_c_0
+
         # If first slice, static is equal to stagnation
         # Otherwise this will be set after convergence
 
@@ -115,22 +124,24 @@ def heat_transfer_solver(data: dict, max_iter=50):
         # Iterate multiple times to get the proper values
         for j in range(max_iter):
 
+            # == COOLANT == #
+
             # If not the first slice, and then if first iteration or not
             if i != N-1:
-                if j == 1:
+                if j == 0:
                     rho_c: float = float(rho_c_arr[i+1])
                 else:
                     # This is derived directly from the previous iteration, no manual adjusting of any kind
-                    rho_c: float = CP.PropsSI("rhomass", "P", P_c_arr[i+1], "H", H_c_arr[i+1])
+                    rho_c: float = CP.PropsSI("rhomass", "P", P_c, "H", H_c)
 
             else:
-                if j == 1:
+                if j == 0:
                     H_c = H_c_0
                     P_c = P_c_0
                     rho_c = rho_c_0
 
             # If first iteration, update stagnation enthalpy with eqn 9
-            if j == 1:
+            if j == 0:
                 H_c_0 = H_c_0_arr[i+1] + (q_c_arr[j+1] * dx_i / mdot)
 
             else:
@@ -190,7 +201,50 @@ def heat_transfer_solver(data: dict, max_iter=50):
 
             # Update coolant reference properties
             st.update(CP.PSmass_INPUTS, P_c, H_c_Ref)
+            T_c_Ref = st.T()
+            cp_c_Ref = st.cpmass()
+            mu_c_Ref = st.viscosity()
+            k_c_Ref = st.conductivity()
+            P_c_Ref = st.p()
+            rho_c_Ref = st.rhomass()
 
+            # Update coolant static properties
+            st.update(CP.PSmass_INPUTS, P_c, H_c)
+            T_c = st.T()
+            cp_c = st.cpmass()
+            mu_c = st.viscosity()
+            k_c = st.conductivity()
+            P_c = st.p()
+            rho_c = st.rhomass()
+
+            # Coolant Prandtl Number reference
+            Pr_c_Ref = cp_c_Ref * mu_c_Ref / k_c_Ref
+
+            # Coolant adiabatic wall enthalpy
+            H_c_aw = H_c + (Pr_c_Ref**(1/3) * (H_c_0 - H_c))
+
+            # Coolant adiabatic wall temp
+            T_c_aw = CP.PropsSI("T", "P", P_c, "H", H_c_aw)
+
+            # Coolant heat transfer using dittus-boltzman
+            d_hyd = 2 * (depth[i] * width[i]) / (depth[i] + width[i])
+            Re_c_Ref = rho_c_Ref * v_c * d_hyd / mu_c_Ref
+
+            if 0.1 <= Pr_c_Ref <= 1.0:
+                Nu_c_Ref = 0.02155 * Re_c_Ref**0.8018 * Pr_c_Ref**0.7095
+            elif 1.0 < Pr_c_Ref <= 3.0:
+                Nu_c_Ref = 0.01253 * Re_c_Ref**0.8413 * Pr_c_Ref**0.6179
+            else:
+                Nu_c_Ref = 0.00881 * Re_c_Ref**0.8991 * Pr_c_Ref**0.3911
+
+            h_c_httrans = Nu_c_Ref * k_c_Ref / d_hyd
+
+
+            # == WALL == #
+            # Update wall properties, updated from previous iteration
+            Material_Properties(dic=data)
+            # Wall heat transfer coefficient
+            h_w_httrans = t_wall / k_wall
 
 
             # == HOT GAS == #
@@ -212,24 +266,38 @@ def heat_transfer_solver(data: dict, max_iter=50):
             Re_hg_Ref = 4 * mdot_hg * T_hg[i] / (np.pi * 2*y_i * mu_hg[i] * T_hg_Ref)
 
             # Hot gas side heat transfer coefficient
-            h_hg = (C_hg * k_hg[i] / (y_i*2)) * Re_hg_Ref**0.8 * Pr_hg_Ref**0.3
+            h_hg_httrans = (C_hg * k_hg[i] / (y_i*2)) * Re_hg_Ref**0.8 * Pr_hg_Ref**0.3
 
-            # == COOLANT == #
+            # == COMBINED HEAT FLUX == #
 
-            # Coolant velocity
-            v_c = mdot / (rho_c * depth[i] * width[i] * num_ch)
+            # Basically a resistance setup
+            h_overall = ((1/h_hg_httrans) + h_w_httrans + (1/h_c_httrans))**-1
+
+            # Total heat flux q = H*(Taw - Tco)
+            q_tot = h_overall * ((H_hg_aw/cp_hg[i]) - (H_c_Ref/cp_c_Ref))
+
+            # New hot gas side wall temp
+            T_hg_w_new: float = (H_hg_aw / cp_hg[i]) - (q_tot/h_hg_httrans)
+            T_c_w_new: float = T_hg_w_new - (q_tot/h_w_httrans)
+            T_c_new: float = T_c_w_new - (q_tot/h_c_httrans)
 
 
-            # Some other stuff
+            # Now compare ALL the new temps with the previous iteraiton
+            err_hg_w = abs(T_hg_w_new - T_hg_w_old) / T_hg_w_new
+            err_c_w = abs(T_c_w_new - T_c_w_old) / T_c_w_new
+            err_c = abs(T_c_new - T_c_old) / T_c_new
+            if (err_hg_w or err_c or err_c_w) < tol:
+                break
+
+            # == UPDATE FOR NEXT ITERATION == #
+            T_hg_w_old = T_hg_w_new
+            T_c_w_old = T_c_w_new
+            T_c_old = T_c_new
 
 
 
 
-            # Update stagnation enthalpy
-            # H_c_0 = H_c_0_arr[i+1] + ((q + q_arr[i+1) * dx_i / (2 * mdot))
+
 
 
         # Next stations static point is the previous stations converged stagnation??
-
-
-

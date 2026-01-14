@@ -230,6 +230,7 @@ if __name__ == '__main__':
                 "Type": "Inconel 718",
                 "thickness": 0.00025,
                 "InitialTemp": 298,
+                "T": 298,
             },
             "C": {
                 "Type": "Square",
