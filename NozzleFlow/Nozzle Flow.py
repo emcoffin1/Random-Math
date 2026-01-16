@@ -1,6 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
-from HeatTransfer.bartz_formulas import bartz_heat_transfer_const, bartz_heat_transfer_1d, pressure_drop_assessment
+from HeatTransfer.bartz_formulas import heat_transfer_solver, bartz_heat_transfer_1d, pressure_drop_assessment
 import _extra_utils as utils
 from GasProperties import HotGas_Properties, Fluid_Properties, Material_Properties
 from ExtraAnalysis import *
@@ -122,7 +122,8 @@ def main_basic(data: dict, nozzle_build: bool = True, display=True):
     # == HEAT TRANSFER == #
     # =================== #
     if heat_solver:
-        q: dict         = bartz_heat_transfer_1d(info=data)
+        # q: dict         = bartz_heat_transfer_1d(info=data)
+        q: dict = heat_transfer_solver(data=data)
         if iterate_cooling:
             print("UPDATE: Iterating Cooling Design")
             q           = iterate_cooling_design(q=q, data=data, tol=1e-4)
@@ -231,6 +232,7 @@ if __name__ == '__main__':
                 "thickness": 0.00025,
                 "InitialTemp": 298,
                 "T": 298,
+                "roughness": 1e-5,
             },
             "C": {
                 "Type": "Square",

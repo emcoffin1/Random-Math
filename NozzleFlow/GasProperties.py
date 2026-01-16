@@ -208,11 +208,13 @@ def Fluid_Properties(dic: dict, coolant_only=False):
                   f"{dic["F"]["H"]} J/kg")
 
 
-
-def Material_Properties(dic: dict):
+def Material_Properties(dic: dict, T: float = None):
     """Manual input of multiple materials for easy reference"""
     material = dic["W"]["Type"]
-    T = dic["W"]["T"] # K
+    if T is None:
+        T = dic["W"]["T"] # K
+    else:
+        T = T
 
     if material == "SS 304":
         cp = 500            # J/kg-K
