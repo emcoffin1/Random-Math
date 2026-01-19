@@ -202,9 +202,11 @@ def Moody_plot(eps_dh: float, Re: float):
 
 def data_display(data: dict):
     # os.system("cls" if os.name == "nt" else "clear")
-    frmt                = "{:<50} {:<10.3f} {:<10} {:<}"
-    frmt2               = "{:<50} {:<10} {:<10} {:<}"
-    frmte               = "{:<50} {:<10.3e} {:<10} {:<}"
+    frmt                = "{:<50} {:<12.3f} {:<12} {:<12.3f} {:<12} {:<}"
+    frmt2               = "{:<50} {:<12} {:<12} {:<12} {:<12} {:<}"
+    frmte               = "{:<50} {:<12.3e} {:<12} {:<12.3e} {:<12} {:<}"
+    frmtext             = "{:<50} {:<12} {:<12} {:<12.3f} {:<12} {:<}"
+    frmtint             = "{:<50} {:<12.3f} {:<12} {:<12} {:<12} {:<}"
 
     q = data["q"]
 
@@ -226,28 +228,32 @@ def data_display(data: dict):
     # ============== #
     # == PRINTING == #
     # ============== #
-    print("=" * 72, f"{'|':<}")
-    print(f"{'ENGINE GEOMETRY':^70} {'|':>3}")
-    print("- " * 36, f"{'|':<}")
+    print("=" * 102, f"{'|':<}")
+    print(f"{'ENGINE GEOMETRY':^100} {'|':>3}")
+    print("- " * 51, f"{'|':<}")
 
-    print(frmt.format("Throat Diameter", min(y) * 2*100, "cm", "|"))
-    print(frmt.format("Exit Velocity", exit_vel, "m/s", "|"))
-    print(frmt.format("Exit Diameter", y[-1] * 2, "m", "|"))
-    print(frmt.format("Total Force @ SL", exit_vel * mdot / 1e3, "kN", "|"))
-    print(frmt.format("Total Engine Length", x[-1] - x[0], "m", "|"))
-    print(frmt.format("Mass Flow Rate", mdot, "kg/s", "|"))
-    print(frmt.format("Expansion Ratio", np.max(eps), "kg/s", "|"))
-    print(frmt.format("Chamber Radius", data["E"]["y"][-1]*1000, "mm", "|"))
-    print(frmt.format("Engine Length", (x[-1] - x[0]), "m", "|"))
-    print(frmt.format("Chamber Length", Lc*1000, "mm", "|"))
-    print(frmt.format("Characteristic Velocity", data["H"]["cstar"], "m/s", "|"))
+    print(frmt.format("Throat Diameter", min(y) * 2*100, "cm", min(y)*39.3701*2, "in", "|"))
+    print(frmt.format("Exit Velocity", exit_vel, "m/s", exit_vel*3.28084, "ft/s", "|"))
+    print(frmt.format("Exit Diameter", y[-1] * 2, "m", y[-1]*2*39.3701, "in", "|"))
+    print(frmt.format("Total Force @ SL", exit_vel * mdot / 1e3, "kN", exit_vel * mdot / 1e3 * 224.809, "lbs", "|"))
+    print(frmt.format("Total Engine Length", x[-1] - x[0], "m", (x[-1] - x[0])*39.3701, "in", "|"))
+    print(frmt.format("Mass Flow Rate", mdot, "kg/s", mdot*2.20462, "lbs/s", "|"))
+    of = data["E"]["OF"]
+    of_f = mdot / (of + 1)
+    of_l = of * mdot / (of + 1)
+    print(frmt.format("Fuel Flow Rate", of_f, "kg/s", of_f*2.20462, "lbs/s", "|"))
+    print(frmt.format("Ox Flow Rate", of_l, "kg/s", of_l*2.20462, "lbs/s", "|"))
+    print(frmtext.format("Expansion Ratio", "", "", np.max(eps), " ", "|"))
+    print(frmt.format("Chamber Radius", data["E"]["y"][-1]*1000, "mm", data["E"]["y"][-1]*39.3701, "in", "|"))
+    print(frmt.format("Chamber Length", Lc/1000, "mm", Lc*39.3701, "in", "|"))
+    print(frmt.format("Characteristic Velocity", data["H"]["cstar"], "m/s", data["H"]["cstar"]*3.28084, "ft/s", "|"))
 
-    print("="*72,f"{'|':<}")
-    print(f"{'GAS CONDITIONS':^70} {'|':>3}")
-    print("- " * 36, f"{'|':<}")
+    print("="*102,f"{'|':<}")
+    print(f"{'GAS CONDITIONS':^100} {'|':>3}")
+    print("- " * 51, f"{'|':<}")
 
-    P_exit = round(data["Flow"]["P"][-1],3)
-    P_ambient = round(data["E"]["Pe"],3)
+    P_exit = round(data["Flow"]["P"][-1], 3)
+    P_ambient = round(data["E"]["Pe"], 3)
     if P_exit < P_ambient:
         condition = "Over"
     elif P_exit > P_ambient:
@@ -255,48 +261,43 @@ def data_display(data: dict):
     else:
         condition = "Perfect"
 
-    print(frmt.format("Chamber Pressure", Pc/1e6, "MPa", "|"))
-    print(frmt.format("Chamber Temperature", Tc, "K", "|"))
-    print(frmt.format("Exit Pressure", data["Flow"]["P"][-1] / 1e6, "MPa", "|"))
-    print(frmt.format("Ambient Pressure", P_ambient / 1e6, "MPa", "|"))
-    print(frmt2.format("Expansion Condition", condition, "", "|"))
-
-    print(frmt.format("Gamma", gamma, "", "|"))
-    print(frmt.format("Gas Constant (R)", R, "J/kg-K", "|"))
-    print(frmt.format("Gas Coefficient of Constant Pressure (cp_g)", data["H"]["cp"][1], "J/kg-K", "|"))
-    print(frmt.format("OF Ratio", data["E"]["OF"], "", "|"))
-    print(frmt.format("Mass Flow Rate", mdot, "kg/s", "|"))
-    of                  = data["E"]["OF"]
-    print(frmt.format("Fuel Flow Rate", mdot/ (of + 1), "kg/s", "|"))
-    print(frmt.format("Ox Flow Rate", of * mdot / (of + 1), "kg/s", "|"))
+    print(frmt.format("Chamber Pressure", Pc/1e6, "MPa", Pc*0.000145038, "psi", "|"))
+    print(frmtint.format("Chamber Temperature", Tc, "K", "--", "R", "|"))
+    print(frmt.format("Exit Pressure", data["Flow"]["P"][-1] / 1e6, "MPa", data["Flow"]["P"][-1]*0.000145038, "psi", "|"))
+    print(frmt.format("Ambient Pressure", P_ambient / 1e6, "MPa", P_ambient*0.000145038, "psi", "|"))
+    print(frmt2.format("Expansion Condition", "", "", condition, "", "|"))
+    print(frmtext.format("Gamma", "", "", gamma, "", "|"))
+    print(frmt.format("Gas Constant (R)", R, "J/kg-K", R*0.0002390057, "Btu/lbs-F", "|"))
+    print(frmt.format("Gas Coefficient of Constant Pressure (cp_g)", data["H"]["cp"][1], "J/kg-K", data["H"]["cp"][1]*0.0002390057, "Btu/lbs-F", "|"))
+    print(frmtext.format("OF Ratio", "", "", data["E"]["OF"], "", "|"))
     k_gas               = data["H"]["k"]
-    print(frmt2.format("Thermal Conductivity", "", "", "|"))
-    print(frmt.format(" ", k_gas[0], "W/(m-K)", "|"))
-    print(frmt.format(" ", k_gas[1], "W/(m-K)", "|"))
-    print(frmt.format(" ", k_gas[2], "W/(m-K)", "|"))
+    print(frmt2.format("Thermal Conductivity", "", "", "", "", "|"))
+    print(frmt.format("    Chamber", k_gas[0], "W/(m-K)", k_gas[0]*0.577789, "Btu/hr-ft-F", "|"))
+    print(frmt.format("    Throat", k_gas[1], "W/(m-K)", k_gas[1]*0.577789, "Btu/hr-ft-F","|"))
+    print(frmt.format("    Exit", k_gas[2], "W/(m-K)", k_gas[2]*0.577789, "Btu/hr-ft-F","|"))
     mu                  = data["H"]["mu"]
-    print(frmt2.format("Dynamic Viscosity", "", "", "|"))
-    print(frmte.format("", mu[0], "Pa-s", "|"))
-    print(frmte.format("", mu[1], "Pa-s", "|"))
-    print(frmte.format("", mu[2], "Pa-s", "|"))
+    print(frmt2.format("Dynamic Viscosity", "", "", "", "", "|"))
+    print(frmte.format("    Chamber", mu[0], "Pa-s", mu[0]*1.450377, "psi-s", "|"))
+    print(frmte.format("    Throat", mu[1], "Pa-s", mu[1]*1.450377, "psi-s", "|"))
+    print(frmte.format("    Exit", mu[2], "Pa-s", mu[2]*1.450377, "psi-s", "|"))
     Pr                  = data["H"]["Pr"]
-    print(frmt2.format("Prandtl Number", "", "", "|"))
-    print(frmt.format("", Pr[0], "", "|"))
-    print(frmt.format("", Pr[1], "", "|"))
-    print(frmt.format("", Pr[2], "", "|"))
-    print(frmt.format("Molar Weight", data["H"]["MW"], "g/mol", "|"))
+    print(frmt2.format("Prandtl Number", "", "", "", "", "|"))
+    print(frmtext.format("    Chamber", "", "", Pr[0], "", "|"))
+    print(frmtext.format("    Throat", "", "", Pr[1], "", "|"))
+    print(frmtext.format("    Exit", "", "", Pr[2], "", "|"))
+    print(frmtint.format("Molar Weight", data["H"]["MW"], "g/mol", "--", "lbm/lbmol", "|"))
 
 
-    print("=" * 72, f"{'|':<}")
-    print(f"{'Generated Ideal Cooling Geometry Based On H&H':^70} {'|':>3}")
-    print("- " * 36, f"{'|':<}")
-    print(frmt.format("Max Wall Temp Used", data["W"]["max_wall_temp"], "K", "|"))
-    print(frmt2.format("Geometry Type", data["C"]["Type"].title(), "", "|"))
-    print(frmt.format("Pressure Drop Through Channels", data["C"]["dP"]/1e6, "MPa", "|"))
-    print(frmt.format("Fuel Inlet Pressure", data["F"]["StartingPressure"]/1e6, "MPa", "|"))
+    print("=" * 102, f"{'|':<}")
+    print(f"{'Generated Ideal Cooling Geometry Based On H&H':^100} {'|':>3}")
+    print("- " * 51, f"{'|':<}")
+    print(frmtint.format("Max Wall Temp Used", data["W"]["max_wall_temp"], "K", "", "R", "|"))
+    print(frmt2.format("Geometry Type", "", "", data["C"]["Type"].title(), "",  "|"))
+    print(frmt.format("Pressure Drop Through Channels", data["C"]["dP"]/1e6, "MPa", data["C"]["dP"]*0.000145037, "psi", "|"))
+    print(frmt.format("Fuel Inlet Pressure", data["F"]["StartingPressure"]/1e6, "MPa", data["F"]["StartingPressure"]*0.000145037, "psi", "|"))
 
     if data["C"]["Type"].lower() == "circle":
-        print(frmt.format("Number of Channels", data["C"]["num_ch"], "", "|"))
+        print(frmtext.format("Number of Channels", "", "", data["C"]["num_ch"], "", "|"))
         print(frmt.format("Inner Diameter", data["C"]["height"] * 1000, "mm", "|"))
         print(frmt.format("Outer Diameter", data["C"]["spacing"] * 1000, "mm", "|"))
         print(frmt.format("Wall Thickness", data["C"]["wall_thickness"] * 1000, "mm", "|"))
@@ -305,18 +306,19 @@ def data_display(data: dict):
         print(frmt.format("Coolant Bulk Temp", data["C"]["throat_bulk_temp"], "K", "|"))
 
     elif data["C"]["Type"].lower() == "square":
-        print(frmt.format("Number of Channels", data["C"]["num_ch"], "", "|"))
-        print(frmt2.format("Edge Width", "", "", "|"))
-        print(frmt.format("     Throat", data["C"]["height"] * 1000, "mm", "|"))
-        print(frmt.format('     Minimum', np.min(data["C"]["width_arr"]) * 1000, "mm", "|"))
-        print(frmt2.format("Edge Depth", "","","|"))
-        print(frmt.format("     Throat", data["C"]["spacing"] * 1000, "mm", "|"))
-        print(frmt.format('     Minimum', np.min(data["C"]["depth_arr"]) * 1000, "mm", "|"))
-        print(frmt.format("Fin Thickness", data["C"]["spacing"] * 1000, "mm", "|"))
-        print(frmt.format("Wall Thickness", data["W"]["thickness"] * 1000, "mm", "|"))
-        print(frmte.format("Channel Area", data["C"]["spacing"] ** 2, "m", "|"))
-        print(frmt.format("Mass Flow Per Channel", data["F"]["mdot"] / data["C"]["num_ch"] * 1000, "g/s", "|"))
-        print(frmt.format("Coolant Bulk Temp", data["C"]["throat_bulk_temp"], "K", "|"))
+        print(frmtext.format("Number of Channels", "", "", data["C"]["num_ch"], "", "|"))
+        print(frmt2.format("Edge Width", "", "", "", "", "|"))
+        print(frmt.format("     Throat", data["C"]["height"] * 1000, "mm", data["C"]["height"]*39.3701, "in", "|"))
+        print(frmt.format('     Minimum', np.min(data["C"]["width_arr"]) * 1000, "mm", np.min(data["C"]["width_arr"])*39.3701, "in", "|"))
+        print(frmt2.format("Edge Depth", "", "", "", "", "|"))
+        print(frmt.format("     Throat", data["C"]["spacing"] * 1000, "mm", data["C"]["spacing"]*39.3701, "in", "|"))
+        print(frmt.format('     Minimum', np.min(data["C"]["depth_arr"]) * 1000, "mm", np.min(data["C"]["depth_arr"])*39.3701, "in", "|"))
+        print(frmt.format("Fin Thickness", data["C"]["spacing"] * 1000, "mm", data["C"]["spacing"]*39.3701, "in", "|"))
+        print(frmt.format("Wall Thickness", data["W"]["thickness"] * 1000, "mm", data["W"]["thickness"]*39.3701, "in", "|"))
+        print(frmt.format("Channel Area", data["C"]["spacing"] ** 2, "m2", data["C"]["spacing"] ** 2*1550, "in2", "|"))
+        print(frmt.format("Mass Flow Per Channel", data["F"]["mdot"] / data["C"]["num_ch"] * 1000, "g/s", data["F"]["mdot"] / data["C"]["num_ch"]*2.20462, "lb/s", "|"))
+        print(frmtint.format("Coolant Bulk Temp", data["C"]["throat_bulk_temp"], "K", "", "R", "|"))
+
 
 
 
@@ -326,15 +328,16 @@ def data_display(data: dict):
         max_wall_temp_x = data_at_point(A=q["T_wall_gas"], B=x, value=np.max(q["T_wall_gas"]))
         max_wall_temp   = np.max(q["T_wall_gas"])
 
-        print("=" * 72, f"{'|':<}")
-        print(f"{'HEAT DATA':^70} {'|':>3}")
-        print("- " * 36, f"{'|':<}")
+        print("=" * 102, f"{'|':<}")
+        print(f"{'HEAT DATA':^100} {'|':>3}")
+        print("- " * 51, f"{'|':<}")
 
-        print(frmt.format("Maximum Wall Temp", max_wall_temp, "K", "|"))
-        print(frmt.format("at ... from throat", max_wall_temp_x * 1000, "mm", "|"))
-        print(frmt.format("Maximum Coolant Temp", np.max(q["T_cool"]), "K", "|"))
-        print(frmt.format("Coolant Temp at Throat", data_at_point(A=data["E"]["x"], B=q["T_cool"], value=0), "K", "|"))
-        print(frmt.format("Regen Channel Pressure Drop", (q["P_c"][-1] - q["P_c"][0])/1000, "kPa", "|"))
+        print(frmtint.format("Maximum Wall Temp", max_wall_temp, "K", "", "R", "|"))
+        print(frmt.format("at ... from throat", max_wall_temp_x * 1000, "mm", max_wall_temp_x*39.3701, "in", "|"))
+        print(frmtint.format("Maximum Coolant Temp", np.max(q["T_cool"]), "K", "", "R", "|"))
+        print(frmt.format("Coolant Critical Pressure", data["F"]["State"].p_critical()/1e6, "MPa", data["F"]["State"].p_critical()*0.000145038, "psi", "|"))
+        print(frmtint.format("Coolant Temp at Throat", data_at_point(A=data["E"]["x"], B=q["T_cool"], value=0), "K", "", "R", "|"))
+        print(frmt.format("Regen Channel Pressure Drop", (q["P_c"][-1] - q["P_c"][0])/1000, "kPa", (q["P_c"][-1] - q["P_c"][0])*0.000145038, "psi", "|"))
         # if np.max(q["T_cool"]) == data["F"]["T_max"]:
         #     print(frmt2.format("The coolant exceeded the thermally stable temperature region", "","","|"))
         #     print(frmt.format("The coolant was therefor clamped to", data["F"]["T_max"], "K", "|"))
@@ -344,6 +347,9 @@ def data_display(data: dict):
         # print(frmt.format("Average Heat Rate (Qdot)", np.mean(q["Q_dot"]), "W", "|"))
         # print(frmt.format("Total Heat rate (Qdot)", sum(q["Q_dot"]), "W", "|"))
 
+        print("=" * 102, f"{'|':<}")
+        print(f"{'---':^100} {'|':>3}")
+        print("- " * 51, f"{'|':<}")
 
 
         melting_point = data["W"]["solidus"]

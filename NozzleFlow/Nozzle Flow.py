@@ -122,7 +122,7 @@ def main_basic(data: dict, nozzle_build: bool = True, display=True):
     # == HEAT TRANSFER == #
     # =================== #
     if heat_solver:
-        HotGas_Properties(dic=data)
+        # HotGas_Properties(dic=data)
         q: dict         = bartz_heat_transfer_1d(info=data)
         # q: dict = heat_transfer_solver(data=data)
         if iterate_cooling:
@@ -135,6 +135,8 @@ def main_basic(data: dict, nozzle_build: bool = True, display=True):
             iterate_pressure_drop(data=data)
 
         data["q"]       = q
+        pressure_drop_assessment(data=data)
+
 
     if print_display:
         utils.data_display(data=data)
@@ -164,18 +166,18 @@ if __name__ == '__main__':
             "Display": {
                 "PrintOut": True,
                 "EnginePlot": "no",
-                "FlowPlot": True,
-                "EnergyPlot": True,
+                "FlowPlot": False,
+                "EnergyPlot": False,
                 "ChannelPlot": False,
                 "ContourPlot": False,
             },
             "CEA_obj": object,
             "E": {
-                "Pc": 2.5e6,  # Chamber Pressure [Pa]
+                "Pc": 2.08e6,  # Chamber Pressure [Pa]
                 "Pe": 101325,  # Ambient Pressure (exit) [Pa]
                 "Tc": None,  # Chamber temp [K]
-                "mdot": 1.785,  # Mass Flow Rate [kg/s]
-                "OF": 2.19,
+                "mdot": 1.89,  # Mass Flow Rate [kg/s]
+                "OF": 1.8,
                 "size": 1.0,
                 "CR": 6,
                 "Lc": None,
@@ -209,6 +211,7 @@ if __name__ == '__main__':
                 "MW": None,
                 "mdot": None,
                 "rho_arr": [],
+                "mu_arr": [],
             },
             "O": {
                 "Type": "LOX",
