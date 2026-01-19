@@ -153,6 +153,7 @@ def bartz_heat_transfer_1d(info: dict, max_iteration=100, tol=1e-13):
     v_arr:      np.ndarray      = np.zeros(N, dtype=float)
     Dh_arr:     np.ndarray      = np.zeros(N, dtype=float)
     P_bulk_arr: np.ndarray      = np.zeros(N, dtype=float)
+    dp_arr: np.ndarray = np.zeros(N, dtype=float)
     info["F"]["rho_arr"] : np.ndarray()       = np.zeros(N, dtype=float)
     info["F"]["mu_arr"] : np.ndarray()       = np.zeros(N, dtype=float)
 
@@ -242,9 +243,11 @@ def bartz_heat_transfer_1d(info: dict, max_iteration=100, tol=1e-13):
 
             # Laminar
             if Re_c < 2300:
+                print("Lainar")
                 f = 64 / Re_c
             # Transient
             elif 2300 < Re_c < 4000:
+                print("Transient")
                 # Treat conservatively
                 # Do a blend of the two
                 f_turb = Moody_plot(eps_dh, Re_c)
@@ -339,6 +342,7 @@ def bartz_heat_transfer_1d(info: dict, max_iteration=100, tol=1e-13):
         T_c_out[i] = T_coolant_out
         Q_dot[i] = float(Q_i)
         P_bulk_arr[i] = P_bulk
+        dp_arr[i]   = dP_c
 
         # Random fluid values
         h_wc[i] = h_coolant
@@ -391,6 +395,8 @@ def bartz_heat_transfer_1d(info: dict, max_iteration=100, tol=1e-13):
 
     Q_slice_coolant = mdot_f * (h_out_arr - h_in_arr)
     slice_error = Q_dot - Q_slice_coolant
+
+    print(np.sum(dp_arr))
 
     dic = {"h_hg": h_hg,
            "h_wc": h_wc,

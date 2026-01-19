@@ -45,7 +45,7 @@ def isp_getter(fuel, ox, plot=False):
 
     result_isp = []
     OF = np.linspace(1, 5, 500)
-    pc = 2.5e6* 0.000145038
+    pc = 2.5e6 * 0.000145038
     for i in OF:
         isp, _ = CEA.estimate_Ambient_Isp(Pc=pc, MR=i)
         result_isp.append(isp)
@@ -200,10 +200,10 @@ def rocket_eqn_analysis(fuel, ox, alt: int, of, isp, T_W_ratio: float = 6, m0: f
 
 if __name__ == "__main__":
     # isp_getter(fuel="Kerosene", ox="O2")
-    of, isp = isp_getter(fuel="Kerosene", ox="LOX")
-    rocket_eqn_analysis(fuel="Kerosene", ox="LOX", alt=1, isp=isp, of=of)
+    # of, isp = isp_getter(fuel="Kerosene", ox="LOX")
+    # rocket_eqn_analysis(fuel="Kerosene", ox="LOX", alt=1, isp=isp, of=of)
 
-    # cea = CEA_Obj(oxName="O2", fuelName="Kerosene")
-    #
-    # print(cea.get_Chamber_MolWt_gamma(Pc=362, MR=2.19))
-
+    cea = CEA_Obj(oxName="O2", fuelName="Kerosene")
+    for i in np.linspace(100,800, 20):
+        print(i, cea.get_Tcomb(Pc=i, MR=1.8)*5/9)
+        # print(i)

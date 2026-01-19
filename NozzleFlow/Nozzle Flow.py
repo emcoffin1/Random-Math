@@ -157,7 +157,7 @@ if __name__ == '__main__':
     info = {
             "Solver": {
                 "CEA": True,
-                "IterateCooling": False,
+                "IterateCooling": True,
                 "IteratePressureDrop": False,
                 "FilmCool": False,
                 "EnergyMethod": True,
@@ -165,18 +165,18 @@ if __name__ == '__main__':
             },
             "Display": {
                 "PrintOut": True,
-                "EnginePlot": "no",
-                "FlowPlot": False,
-                "EnergyPlot": False,
+                "EnginePlot": "2D",
+                "FlowPlot": True,
+                "EnergyPlot": True,
                 "ChannelPlot": False,
                 "ContourPlot": False,
             },
             "CEA_obj": object,
             "E": {
-                "Pc": 2.08e6,  # Chamber Pressure [Pa]
+                "Pc": 3.01e6,  # Chamber Pressure [Pa]
                 "Pe": 101325,  # Ambient Pressure (exit) [Pa]
                 "Tc": None,  # Chamber temp [K]
-                "mdot": 1.89,  # Mass Flow Rate [kg/s]
+                "mdot": 2.75,  # Mass Flow Rate [kg/s]
                 "OF": 1.8,
                 "size": 1.0,
                 "CR": 6,
