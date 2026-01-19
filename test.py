@@ -79,7 +79,7 @@ def heat_transfer_solver(data: dict, max_iter=50, tol=1e-4):
                 T_c_0 = T_c_derived
                 T_wall_c = T_wc
                 T_wall_hg = T_wg
-                return T_c_0, T_wall_c, T_wall_hg
+                return T_c_0, T_wall_c, T_wall_hg, P_c_0, T_aw_i
             else:
                 # No convergence yet
                 T_c_0 = T_c_derived
@@ -91,15 +91,18 @@ def heat_transfer_solver(data: dict, max_iter=50, tol=1e-4):
         This function handles all stations after the first (at the nozzle exit)
         This will handle the pressure drop and will use the ds between each station point
         """
-        P_c = P_c_0
+        # Lets set the pressure to the incoming pressure
+        # This is going to get updated after the pressure drop is calculated
+        P_c_0 = P_c
+
+        # First lets determine the pressure at this station
+        # This is done by subtracting the pressure from the original pressure
+        # Length of slice using just pythagorean
+        ds = np.sqrt((y[i] - y[i + 1]) ** 2 + (x[i] - x[i + 1]) ** 2)
+        Dh_c = 2 * depth[i] * width[i] / (depth[i] + width[i])
         for j in range(max_iter):
             # == COOLANT == #
 
-            # First lets determine the pressure at this station
-            # This is done by subtracting the pressure from the original pressure
-            # Length of slice using just pythagorean
-            ds = np.sqrt((y[i] - y[i + 1]) ** 2 + (x[i] - x[i + 1]) ** 2)
-            Dh_c = 2 * depth[i] * width[i] / (depth[i] + width[i])
 
             # Coolant Properties
             st.update(CP.PT_INPUTS, P_c, T_c_0)
@@ -134,23 +137,114 @@ def heat_transfer_solver(data: dict, max_iter=50, tol=1e-4):
 
             # Now update the pressure at this slice
             # This is NOT an energy method
+            # And this will not change
             P_c = P_c_0 - dP_c
 
+            # Using the new coolant pressure, find the coolant props
+            # Coolant temp is going to be iterated, so first iteration is the
+            # T_c_0 from the previous step
+            # but will be updated at the end of the iteration
+            st.update(CP.PT_INPUTS, P_c, T_c_0)
+            cp_c = st.cpmass()
+            mu_c = st.viscosity()
+            k_c = st.conductivity()
+            rho_c = st.rhomass()
+
+            # Compute the new coolant Reynolds number and Prandtl number
+            Pr_c: float = cp_c * mu_c / k_c
+            Re_c: float = rho_c * v_c * Dh_c / mu_c
+
+            # Nusselt number using piecewise from _-_ (Dittus Boltzman form)
+            if 0.1 <= Pr_c <= 1.0:
+                Nu_c: float = 0.02155 * Re_c ** 0.8018 * Pr_c ** 0.7095
+            elif 1.0 < Pr_c <= 3.0:
+                Nu_c: float = 0.01253 * Re_c ** 0.8413 * Pr_c ** 0.6179
+            else:
+                Nu_c: float = 0.00881 * Re_c ** 0.8991 * Pr_c ** 0.3911
+
+            h_c_httrans: float = Nu_c * k_c / Dh_c
 
 
+            # == WALL == #
+            T_w = 0.5 * (T_wall_c + T_wall_hg)
+            # Update wall props with temperature if available
+            Material_Properties(dic=data, T=T_w)
+            k_wall: float = data["W"]["k"]
+            h_w_httrans: float = t_wall / k_wall
 
 
+            # == HOT GAS == #
+            Pr_hg_0 = data["H"]["Pr"][i]
+            recovery_hg = Pr_hg_0 ** (1 / 3)
+            T_aw_hg: float = T_hg[i] + (recovery_hg * (U[i] ** 2 / (2 * cp_hg[i])))
+
+            Re_hg = 4 * mdot_hg / (np.pi * 2*y_i * mu_hg[i])
+            # h_hg_httrans: float = (0.026
+            #                 * Re_hg**0.8
+            #                 * Pr_hg[i]**0.6
+            #                 * (Dt/R)**0.1
+            #                 * (At/A[i])**0.9)
+            #
+            # sigma1 = (0.5 * (T_aw_hg / Tc) * (1+ (gamma_hg[i]-1) / 2 * M[i]**2) + 0.5) ** -0.68
+            # sigma2 = (1 + (gamma_hg[i]-1) / 2 * M[i]**2) ** -0.12
+            # h_hg_httrans *= sigma1 * sigma2
+
+            # NASA hot gas heat transfer coefficient
+            h_hg_httrans = 0.026 * (k_hg[i] / (2 * np.min(data["E"]["y"]))) * Re_hg ** 0.8 * Pr_hg_0 ** 0.3
+
+            # Compute all the heat fluxes to make sure they match
+            H = (1 / h_hg_httrans + 1 / h_w_httrans + 1 / h_c_httrans) ** -1
+            q_tot = H * (T_aw_hg - T_c_0)
+
+            # Hot gas side wall temp
+            T_wg = T_aw_hg - (q_tot / h_hg_httrans)
+
+            # Coolant side wall temp
+            T_wc = T_wg - (q_tot / h_w_httrans)
+
+            # Coolant temp
+            T_c_derived = T_wc - (q_tot / h_c_httrans)
+
+            temp_resid = max(abs(T_wg - T_wall_hg), abs(T_wc - T_wall_c), abs(T_c_derived - T_c_0))
+            if temp_resid < tol or j == max_iter:
+                if j == max_iter:
+                    # We are going to use these values if they don't converge in time
+                    # We'll figure out the issues later
+                    print(f"Slice {i} failed to converge!")
+                T_c_0 = T_c_derived
+                T_wall_c = T_wc
+                T_wall_hg = T_wg
+                return T_c_0, T_wall_c, T_wall_hg, P_c, T_aw_hg
+            else:
+                # No convergence yet
+                T_c_0 = T_c_derived
+                T_wall_c = T_wc
+                T_wall_hg = T_wg
 
     # ============ #
     # == SOLVER == #
     # ============ #
     energy_method = data["Solver"]["EnergyMethod"]
 
+    FLUID_MAP = {
+        "LOX": "Oxygen",
+        "GOX": "Oxygen",
+        "RP-1": "n-Dodecane",
+        "Kerosene": "n-Dodecane",
+        "Kero": "n-Dodecane",
+        "CH4": "Methane"
+    }
+
     # == Engine Geometry == #
     x = data["E"]["x"]
     y = data["E"]["y"]
     U = data["Flow"]["U"]
+    M = data["Flow"]["M"]
     N = len(x)
+    R = (data["E"]["r_exit"] + data["E"]["r_entry"]) / 2
+    Dt = np.min(y)*2
+    A = np.pi / 4 * y**2
+    At = np.pi/4 * Dt**2
 
     # == Channel Geometry == #
     depth:  dict        = data["C"]["depth_arr"]
@@ -182,9 +276,11 @@ def heat_transfer_solver(data: dict, max_iter=50, tol=1e-4):
     H_hg:       dict    = data["Flow"]["H"]
     mdot_hg:    float   = data["E"]["mdot"]
     rho_hg:     dict    = data["Flow"]["rho"]
+    Pr_hg:      dict    = data["H"]["Pr"]
 
     # == Coolant Properties == #
     coolant:    str     = data["F"]["Type"]
+    coolant:    str     = FLUID_MAP.get(coolant, coolant)
     mdot:       float   = data["F"]["mdot"]
 
     """These are initial conditions for the first slice ONLY
@@ -192,7 +288,7 @@ def heat_transfer_solver(data: dict, max_iter=50, tol=1e-4):
     These are the stagnation conditions however"""
 
     # == Hot Gas Properties == #
-    H_hg_0: float = data["H"]["H0"]
+    H_hg_0: float = data["H"]["H"]
     C_hg: float   = 0.023
 
 
@@ -206,8 +302,8 @@ def heat_transfer_solver(data: dict, max_iter=50, tol=1e-4):
 
 
     # == Wall Properties == #
-    T_wall_hg:  float       = data["Wall"]["InitialTemp"]
-    T_wall_c:   float       = data["Wall"]["InitialTemp"]
+    T_wall_hg:  float       = data["W"]["InitialTemp"]
+    T_wall_c:   float       = data["W"]["InitialTemp"]
 
     """These are all the storage items to keep track of data"""
     # == Stagnation Storage == #
@@ -218,8 +314,13 @@ def heat_transfer_solver(data: dict, max_iter=50, tol=1e-4):
     H_c_arr:    np.ndarray  = np.zeros(N, dtype=float)
     rho_c_arr:  np.ndarray  = np.zeros(N, dtype=float)
     Re_c_arr:   np.ndarray  = np.zeros(N, dtype=float)
-    Re_c_Ref_arr:   np.ndarray  = np.zeros(N, dtype=float)
     v_c_arr:    np.ndarray  = np.zeros(N, dtype=float)
+
+    # == Temperature Storage == #
+    T_wall_c_arr:   np.ndarray  = np.zeros(N, dtype=float)
+    T_wall_hg_arr:  np.ndarray  = np.zeros(N, dtype=float)
+    T_c_arr:        np.ndarray  = np.zeros(N, dtype=float)
+    T_aw_arr:       np.ndarray = np.zeros(N, dtype=float)
 
     # == Energy Storage == #
     q_c_arr:    np.ndarray  = np.zeros(N, dtype=float)
@@ -239,29 +340,25 @@ def heat_transfer_solver(data: dict, max_iter=50, tol=1e-4):
         # Slice radius
         y_i = y[i]
 
-        # Slice Position
-        x_i = x[i]
-
-        # Slice thickness
-        # dx_i = dx_i_arr[i]
-        dx_i = np.sqrt((y[i] - y[i+1])**2 + (x[i] - x[i+1])**2)
-
-        # Initial slice temps
-        T_c_w_old = T_wall_c
-        T_hg_w_old = T_wall_hg
-        T_c_old = T_c_0
-
         # Iterations take place within these functions
         if i == N-1:
-            T_c_0, T_wall_c, T_wall_hg = first_station_function(T_c_0=T_c_0, T_wall_hg=T_wall_hg, T_wall_c=T_wall_c,
-                                                                i=i)
+            T_c_0, T_wall_c, T_wall_hg, P_c, T_aw = first_station_function(T_c_0=T_c_0, T_wall_hg=T_wall_hg,
+                                                                     T_wall_c=T_wall_c, i=i)
 
         else:
-            T_c_0, T_wall_c, T_wall_hg = first_station_function(T_c_0=T_c_0, T_wall_hg=T_wall_hg, T_wall_c=T_wall_c,
-                                                                i=i)
+            T_c_0, T_wall_c, T_wall_hg, P_c, T_aw = other_station_function(T_c_0=T_c_0, T_wall_hg=T_wall_hg,
+                                                                     T_wall_c=T_wall_c, P_c=P_c, i=i)
 
+        # Commit slice info to a data array
+        T_c_arr[i] = T_c_0
+        T_wall_c_arr[i] = T_wall_c
+        T_wall_hg_arr[i] = T_wall_hg
+        T_aw_arr[i] = T_aw
+        P_c_arr[i] = P_c
 
-
+    q = {"T_cool": T_c_arr,
+         "T_wall_coolant": T_wall_c_arr,
+         "T_wall_gas": T_wall_hg_arr,}
 
         # If first slice, static is equal to stagnation
         # Otherwise this will be set after convergence

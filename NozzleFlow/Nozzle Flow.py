@@ -122,8 +122,9 @@ def main_basic(data: dict, nozzle_build: bool = True, display=True):
     # == HEAT TRANSFER == #
     # =================== #
     if heat_solver:
-        # q: dict         = bartz_heat_transfer_1d(info=data)
-        q: dict = heat_transfer_solver(data=data)
+        HotGas_Properties(dic=data)
+        q: dict         = bartz_heat_transfer_1d(info=data)
+        # q: dict = heat_transfer_solver(data=data)
         if iterate_cooling:
             print("UPDATE: Iterating Cooling Design")
             q           = iterate_cooling_design(q=q, data=data, tol=1e-4)
@@ -154,8 +155,8 @@ if __name__ == '__main__':
     info = {
             "Solver": {
                 "CEA": True,
-                "IterateCooling": True,
-                "IteratePressureDrop": True,
+                "IterateCooling": False,
+                "IteratePressureDrop": False,
                 "FilmCool": False,
                 "EnergyMethod": True,
                 "HeatSolver": True,
@@ -166,7 +167,7 @@ if __name__ == '__main__':
                 "FlowPlot": True,
                 "EnergyPlot": True,
                 "ChannelPlot": False,
-                "ContourPlot": True,
+                "ContourPlot": False,
             },
             "CEA_obj": object,
             "E": {
