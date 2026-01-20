@@ -64,6 +64,24 @@ def iterate_pressure_drop(data, tol=0.05, iter=50):
 
     raise OverflowError(f"FAILED TO CONVERGE PRESSURE DROP TEST")
 
+def iterate_using_pressure_drop(data, q, tol=0.01, iter=50):
+    dP_old = q["dP_arr"]
+    q_new = None
+    for i in range(iter):
+        data["F"]["StartingPressure"] = data["Injector"]["dP"] + q["P_c"][-1]
+        q_new = bartz_heat_transfer_1d(info=data)
+        dP_new = q_new["dP_arr"]
+
+        dif = abs(dP_new - dP_old) / dP_old
+
+        if dif < tol:
+            return q_new
+        dP_old = dP_new
+        q = q_new
+    print(f"FAILED TO CONVERGE PRESSURE DROP TEST")
+    return q_new
+
+
 
 
 
@@ -77,6 +95,7 @@ def main_basic(data: dict, nozzle_build: bool = True, display=True):
 
     iterate_cooling     = data["Solver"]["IterateCooling"]
     iterate_pressure    = data["Solver"]["IteratePressureDrop"]
+    iterate_using_pressure = data["Solver"]["IterateUsingPressureDrop"]
     heat_solver         = data["Solver"]["HeatSolver"]
 
     print_display       = data["Display"]["PrintOut"]
@@ -124,6 +143,9 @@ def main_basic(data: dict, nozzle_build: bool = True, display=True):
     if heat_solver:
         # HotGas_Properties(dic=data)
         q: dict         = bartz_heat_transfer_1d(info=data)
+        if iterate_using_pressure:
+            print("UPDATE: Iterating Using Pressure Drop")
+            q           = iterate_using_pressure_drop(data=info, q=q)
         # q: dict = heat_transfer_solver(data=data)
         if iterate_cooling:
             print("UPDATE: Iterating Cooling Design")
@@ -131,12 +153,13 @@ def main_basic(data: dict, nozzle_build: bool = True, display=True):
 
         # Perform an analysis on the pressure drop in the regen channel
         if iterate_pressure:
-            print("UPDATE: Iterating Pressure Drop")
+            print("UPDATE: Iterating Using Pressure Drop")
             iterate_pressure_drop(data=data)
 
         data["q"]       = q
+        # This just updates the channel pressure drop printout
+        # with the most up-to-date coolant data
         pressure_drop_assessment(data=data)
-
 
     if print_display:
         utils.data_display(data=data)
@@ -157,16 +180,17 @@ if __name__ == '__main__':
     info = {
             "Solver": {
                 "CEA": True,
-                "IterateCooling": True,
+                "IterateCooling": False,
                 "IteratePressureDrop": False,
+                "IterateUsingPressureDrop": False,
                 "FilmCool": False,
                 "EnergyMethod": True,
                 "HeatSolver": True,
             },
             "Display": {
                 "PrintOut": True,
-                "EnginePlot": "2D",
-                "FlowPlot": True,
+                "EnginePlot": "no",
+                "FlowPlot": False,
                 "EnergyPlot": True,
                 "ChannelPlot": False,
                 "ContourPlot": False,
@@ -231,9 +255,10 @@ if __name__ == '__main__':
             "W": {
                 # "Type": "SS 316L",
                 # "Type": "Tungsten",
-                # "Type": "Copper Chromium",
-                "Type": "Inconel 718",
-                "thickness": 0.00025,
+                "Type": "Copper Chromium",
+                # "Type": "Inconel 718",
+                # "Type": "GRCop-42",
+                "thickness": 0.001,
                 "InitialTemp": 298,
                 "T": 298,
                 "roughness": 1e-5,

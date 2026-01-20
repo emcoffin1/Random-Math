@@ -241,7 +241,7 @@ def Material_Properties(dic: dict, T: float = None):
         rho = 8190          # kg/m^3
         yield_strength = 1100e6  # Pa
         E = 193e9           # Pa
-        k = 20            # W/m-K
+        k = 140            # W/m-K
 
     elif material == "Tungsten":
         cp = 134  # J/kg-K
@@ -259,27 +259,31 @@ def Material_Properties(dic: dict, T: float = None):
         rho = 8900  # kg/m^3
         yield_strength = 120e6  # Pa
         E = 110e9  # Pa
-        k = 300  # W/m-K
+        k = 315  # W/m-K
+        # k = 300
 
     elif material == "GRCop-42":
         """https://additivemanufacturingllc.com/wp-content/uploads/2023/03/GRCop-42.pdf"""
         """https://velo3d.com/wp-content/uploads/2024/04/Velo3D-GRCop-42-Material-Datasheet.pdf"""
         """https://www.sciencedirect.com/science/article/pii/S2352492823013569"""
-        if T is not None:
-            # These are accurate to around 1000K,
-            # everything after is extrapolated and assumed to fit on the same curve
-            T = T / 1000
-            cp = 0.153*T**3 - 0.33*T**2 + 0.312*T + 0.316
-            k = -39.86 * T ** 3 + 4.17 * T ** 2 + 0.97 * T + 329.14
-        else:
-            cp = 0  # J/kg-K
-            k = 315  # W/m-K
-        solidus = 0  # K
-        liquidus = 0  # K
-        rho = 8890  # kg/m3
-        yield_strength = 3.585e+8  # Pa
-        E = 129.7e9  # Pa
-        roughness = 2e-5  # m
+        try:
+            if T is not None:
+                # These are accurate to around 1000K,
+                # everything after is extrapolated and assumed to fit on the same curve
+                T = T / 1000
+                cp = 0.153*T**3 - 0.33*T**2 + 0.312*T + 0.316
+                k = -39.86 * T ** 3 + 4.17 * T ** 2 + 0.97 * T + 329.14
+            else:
+                cp = 390  # J/kg-K
+                k = 315  # W/m-K
+            solidus = 1290  # K
+            liquidus = 1350  # K
+            rho = 8890  # kg/m3
+            yield_strength = 3.585e+8  # Pa
+            E = 129.7e9  # Pa
+            roughness = 2e-5  # m
+        except Exception:
+            print(T)
 
 
     else:

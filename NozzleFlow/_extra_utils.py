@@ -309,10 +309,12 @@ def data_display(data: dict):
         print(frmtext.format("Number of Channels", "", "", data["C"]["num_ch"], "", "|"))
         print(frmt2.format("Edge Width", "", "", "", "", "|"))
         print(frmt.format("     Throat", data["C"]["height"] * 1000, "mm", data["C"]["height"]*39.3701, "in", "|"))
-        print(frmt.format('     Minimum', np.min(data["C"]["width_arr"]) * 1000, "mm", np.min(data["C"]["width_arr"])*39.3701, "in", "|"))
+        print(frmt.format('     Chamber', data["C"]["width_arr"][0] * 1000, "mm", data["C"]["width_arr"][0]*39.3701, "in", "|"))
+        print(frmt.format("    Exit", data["C"]["width_arr"][-1]*1000, "mm", data["C"]["width_arr"][-1]*39.3701, "in", "|"))
         print(frmt2.format("Edge Depth", "", "", "", "", "|"))
         print(frmt.format("     Throat", data["C"]["spacing"] * 1000, "mm", data["C"]["spacing"]*39.3701, "in", "|"))
-        print(frmt.format('     Minimum', np.min(data["C"]["depth_arr"]) * 1000, "mm", np.min(data["C"]["depth_arr"])*39.3701, "in", "|"))
+        print(frmt.format('     Chamber', data["C"]["depth_arr"][0] * 1000, "mm", data["C"]["depth_arr"][0]*39.3701, "in", "|"))
+        print(frmt.format("    Exit", data["C"]["depth_arr"][-1]*1000, "mm", data["C"]["depth_arr"][-1]*39.3701, "in", "|"))
         print(frmt.format("Fin Thickness", data["C"]["spacing"] * 1000, "mm", data["C"]["spacing"]*39.3701, "in", "|"))
         print(frmt.format("Wall Thickness", data["W"]["thickness"] * 1000, "mm", data["W"]["thickness"]*39.3701, "in", "|"))
         print(frmt.format("Channel Area", data["C"]["spacing"] ** 2, "m2", data["C"]["spacing"] ** 2*1550, "in2", "|"))
@@ -338,13 +340,18 @@ def data_display(data: dict):
         print(frmt.format("Coolant Critical Pressure", data["F"]["State"].p_critical()/1e6, "MPa", data["F"]["State"].p_critical()*0.000145038, "psi", "|"))
         print(frmtint.format("Coolant Temp at Throat", data_at_point(A=data["E"]["x"], B=q["T_cool"], value=0), "K", "", "R", "|"))
         print(frmt.format("Regen Channel Pressure Drop", (q["P_c"][-1] - q["P_c"][0])/1000, "kPa", (q["P_c"][-1] - q["P_c"][0])*0.000145038, "psi", "|"))
+        print(frmt.format("Injector Pressure Drop", data["Injector"]["dP"] - data["E"]["Pc"], "Pa", (data["Injector"]["dP"] - data["E"]["Pc"])*0.000145038, "psi", "|"))
+        print(frmt.format("Recommended Inlet Pressure", data["F"]["StartingPressure"]/1e6, "MPa", data["F"]["StartingPressure"]*0.000145038, "psi", "|"))
         # if np.max(q["T_cool"]) == data["F"]["T_max"]:
         #     print(frmt2.format("The coolant exceeded the thermally stable temperature region", "","","|"))
         #     print(frmt.format("The coolant was therefor clamped to", data["F"]["T_max"], "K", "|"))
         # print(frmt.format("Average Heat Transfer Coefficient (hot gas)", np.mean(q["h_hg"]) / 1000, "kW/m^2-K", "|"))
-        # print(frmt.format("Maximum Heat Transfer Coefficient (hot gas)", max(q["h_hg"]) / 1000, "kW/m^2-K", "|"))
+        print(frmt.format("Maximum Heat Transfer Coefficient (hot gas)", np.max(q["h_hg"]) / 1000, "kW/m^2-K", np.max(q["h_hg"]*0.176228), "Btu/hr/ft2", "|"))
         # print(frmt.format("Maximum Heat Transfer Coefficient (wall->coolant", max(q["h_wc"]) / 1000, "kW/m^2-K", "|"))
-        # print(frmt.format("Average Heat Rate (Qdot)", np.mean(q["Q_dot"]), "W", "|"))
+        print(frmt.format("Maximum hHat Flux (hot gas)", np.max(q["qpp_hg"]) / 1000, "kW/m2",
+                          np.max(q["h_hg"] * 0.176228), "Btu/hr/ft2", "|"))
+
+        # print(frmt.format("Average Heat Rate (Qdot)", np.max(q["Q/_dot"]), "W", "|"))
         # print(frmt.format("Total Heat rate (Qdot)", sum(q["Q_dot"]), "W", "|"))
 
         print("=" * 102, f"{'|':<}")
@@ -359,6 +366,9 @@ def data_display(data: dict):
                 f"WARNING : Maximum wall temp exceeds the melting point of {data["W"]["Type"]} by {abs(excess):.2f} K")
             percent = abs(melting_point - max_wall_temp) / max_wall_temp * 100
             print(f"WARNING : This is a {percent:.2f}% error")
+
+
+        print(f"WARNING : All pressure drops and values are estimations, they also do not account for channel inlet conditions")
 
 
 def plot_info(data: dict):
@@ -382,31 +392,31 @@ def plot_info(data: dict):
 
     if energy_plot and data["q"] is not None:
         # print(data["q"])
-        # flows       += [(q["h_hg"], q["h_wc"]),
-        #                        (q["T_wall_gas"], q["T_wall_coolant"], q["T_aw"]),
-        #                        (q["R_hg_w"], q["R_w_w"], q["R_w_c"]),
-        #                        q["Q_dot"],
-        #                        q["Re"],
-        #                        q["T_cool"]
-        #                        ]
-        # names       += ["Heat Transfer Coefficients",
-        #                        "Wall Temps",
-        #                        "Wall Resistances",
-        #                        "Q_dot",
-        #                        "Reynolds",
-        #                        "Coolant Temp"
-        #                        ]
-        # subnames    += [("Gas-Wall", "Wall-Coolant"),
-        #                        ("Wall-Gas", "Wall-Coolant", "Adiabatic Wall"),
-        #                        ("Wall-Gas", "Wall-Wall", "Wall-Coolant"),
-        #                        None,
-        #                        None,
-        #                        None
-        #                        ]
+        flows       += [(q["h_hg"], q["h_wc"]),
+                               (q["T_wall_gas"], q["T_wall_coolant"], q["T_aw"]),
+                               (q["R_hg_w"], q["R_w_w"], q["R_w_c"]),
+                               q["Q_dot"]/1000,
+                               q["qpp_hg"],
+                               q["T_cool"]
+                               ]
+        names       += ["Heat Transfer Coefficients",
+                               "Wall Temps",
+                               "Wall Resistances",
+                               "Q_dot",
+                               "Heat flux",
+                               "Coolant Temp"
+                               ]
+        subnames    += [("Gas-Wall", "Wall-Coolant"),
+                               ("Wall-Gas", "Wall-Coolant", "Adiabatic Wall"),
+                               ("Wall-Gas", "Wall-Wall", "Wall-Coolant"),
+                               None,
+                               None,
+                               None
+                               ]
 
-        flows += [(q["T_wall_gas"], q["T_wall_coolant"]), q["T_cool"], q["P_c"]]
-        names += ["Wall Temps", "Coolant Temp", "Coolant Pressure"]
-        subnames += [("Inner Wall", "Outer Wall"), None, None]
+        # flows += [(q["T_wall_gas"], q["T_wall_coolant"]), q["T_cool"], q["P_c"]]
+        # names += ["Wall Temps", "Coolant Temp", "Coolant Pressure"]
+        # subnames += [("Inner Wall", "Outer Wall"), None, None]
     if flow_plot:
         flows += [data["Flow"]["M"], data["Flow"]["U"], data["Flow"]["T"], data["Flow"]["P"], data["Flow"]["rho"]]
         names += ["M", "U", "T", "P", "rho"]
