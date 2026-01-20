@@ -1,6 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
-from HeatTransfer.bartz_formulas import heat_transfer_solver, bartz_heat_transfer_1d, pressure_drop_assessment
+from HeatTransfer.bartz_formulas import bartz_heat_transfer_1d, pressure_drop_assessment
 import _extra_utils as utils
 from GasProperties import HotGas_Properties, Fluid_Properties, Material_Properties
 from ExtraAnalysis import *
