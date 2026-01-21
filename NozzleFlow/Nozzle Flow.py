@@ -185,7 +185,7 @@ if __name__ == '__main__':
                 "IterateUsingPressureDrop": False,
                 "FilmCool": False,
                 "EnergyMethod": True,
-                "HeatSolver": True,
+                "HeatSolver": False,
             },
             "Display": {
                 "PrintOut": True,
@@ -197,10 +197,10 @@ if __name__ == '__main__':
             },
             "CEA_obj": object,
             "E": {
-                "Pc": 1884840,  # Chamber Pressure [Pa]
+                "Pc": 2.1e6,  # Chamber Pressure [Pa]
                 "Pe": 101325,  # Ambient Pressure (exit) [Pa]
                 "Tc": None,  # Chamber temp [K]
-                "mdot": 1.57,  # Mass Flow Rate [kg/s]
+                "mdot": 1.5,  # Mass Flow Rate [kg/s]
                 "OF": 1.8,
                 "size": 1.0,
                 "CR": 6,

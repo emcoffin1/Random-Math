@@ -451,12 +451,13 @@ def CoolantSizingGuide(data: dict, fos_temp: float = 0.95, deposit_hg: float = 0
     cp                  = gamma*R / (gamma-1)
     Pr                  = 4*gamma / (9*gamma - 5)
     mean_throat_radius  = (data["E"]["r_exit"] + data["E"]["r_entry"]) / 2
-
+    # print(mean_throat_radius, cstar_act)
     # Gas side heat flux using Bartz correlation
     # Only concerned with throat as this is the highest heat flux
     # Therefor all corrections and area corrections become 1.0
     h_hg                = (0.026/Dt**0.2) * (mu**0.2*cp/Pr**0.6) * (Pc/cstar_act)**0.8 * (Dt/mean_throat_radius)**0.1
-    h_hg                = 1 / (1/h_hg + deposit_hg)
+    # print(Dt, mu, cp, Pr, Pc, cstar_act, mean_throat_radius)
+    # h_hg                = 1 / (1/h_hg + deposit_hg)
 
 
     # Required heat flux
@@ -504,6 +505,8 @@ def CoolantSizingGuide(data: dict, fos_temp: float = 0.95, deposit_hg: float = 0
 
     nu_right            = 0.0214 * term1_no_d * term2 * term3
     nu_left             = h_coolant / k_bulk_coolant
+
+    print(Tc_adjusted, q_req)
 
     def secant_d_residual(d_i, geom_i):
         c_i             = None

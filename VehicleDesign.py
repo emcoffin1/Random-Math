@@ -2,6 +2,8 @@ from rocketcea.cea_obj import CEA_Obj
 import numpy as np
 import matplotlib.pyplot as plt
 import re
+from CoolProp.CoolProp import PropsSI, AbstractState
+import CoolProp.CoolProp as CP
 
 def parse_formula(formula):
     tokens = re.findall(r'([A-Z][a-z]*)(\d*)', formula)
@@ -204,7 +206,14 @@ if __name__ == "__main__":
     # rocket_eqn_analysis(fuel="Kerosene", ox="LOX", alt=1, isp=isp, of=of)
 
     cea = CEA_Obj(oxName="O2", fuelName="Kerosene")
-    for i in np.linspace(100,800, 20):
-        print(cea.get_Throat_Transport(Pc=i, MR=1.8)[1] * 1e-4)
-        # print(cea.get_Tcomb(Pc=273, MR=1.8)*5/9)
+    fluid = CP.AbstractState("HEOS", 'n-Dodecane')
+    for i in np.linspace(270,800, 20):
+        #     print(cea.get_Throat_Transport(Pc=i, MR=1.8)[1] * 1e-4)
+        # print(cea.get_Tcomb(Pc=217, MR=1.8)*5/9)
+
         # print(cea.get_HeatCapacities(Pc=273, MR=1.8)[1])
+
+
+        fluid.update(CP.PT_INPUTS, 3e6, i)
+        print(fluid.cpmass())
+        # print(i)
