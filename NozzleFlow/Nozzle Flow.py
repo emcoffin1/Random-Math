@@ -192,15 +192,15 @@ if __name__ == '__main__':
                 "EnginePlot": "no",
                 "FlowPlot": False,
                 "EnergyPlot": True,
-                "ChannelPlot": False,
-                "ContourPlot": False,
+                "ChannelPlot": True,
+                "ContourPlot": True,
             },
             "CEA_obj": object,
             "E": {
-                "Pc": 3.01e6,  # Chamber Pressure [Pa]
+                "Pc": 1884840,  # Chamber Pressure [Pa]
                 "Pe": 101325,  # Ambient Pressure (exit) [Pa]
                 "Tc": None,  # Chamber temp [K]
-                "mdot": 2.75,  # Mass Flow Rate [kg/s]
+                "mdot": 1.57,  # Mass Flow Rate [kg/s]
                 "OF": 1.8,
                 "size": 1.0,
                 "CR": 6,
@@ -255,8 +255,8 @@ if __name__ == '__main__':
             "W": {
                 # "Type": "SS 316L",
                 # "Type": "Tungsten",
-                "Type": "Copper Chromium",
-                # "Type": "Inconel 718",
+                # "Type": "Copper Chromium",
+                "Type": "Inconel 718",
                 # "Type": "GRCop-42",
                 "thickness": 0.001,
                 "InitialTemp": 298,

@@ -199,11 +199,12 @@ def rocket_eqn_analysis(fuel, ox, alt: int, of, isp, T_W_ratio: float = 6, m0: f
 
 
 if __name__ == "__main__":
-    # isp_getter(fuel="Kerosene", ox="O2")
+    # isp_getter(fuel="Ethanol", ox="O2", plot=True)
     # of, isp = isp_getter(fuel="Kerosene", ox="LOX")
     # rocket_eqn_analysis(fuel="Kerosene", ox="LOX", alt=1, isp=isp, of=of)
 
     cea = CEA_Obj(oxName="O2", fuelName="Kerosene")
     for i in np.linspace(100,800, 20):
-        print(i, cea.get_Tcomb(Pc=i, MR=1.8)*5/9)
-        # print(i)
+        print(cea.get_Throat_Transport(Pc=i, MR=1.8)[1] * 1e-4)
+        # print(cea.get_Tcomb(Pc=273, MR=1.8)*5/9)
+        # print(cea.get_HeatCapacities(Pc=273, MR=1.8)[1])

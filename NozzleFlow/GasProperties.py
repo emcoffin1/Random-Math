@@ -306,5 +306,8 @@ def Material_Properties(dic: dict, T: float = None):
 
 if __name__ == "__main__":
 
-    fluids = CP.get_global_param_string("FluidsList")
-    print(fluids)
+    # fluids = CP.get_global_param_string("FluidsList")
+
+    fluids = AbstractState("HEOS", "n-Dodecane")
+    fluids.update(CP.PT_INPUTS, 2.5e6, 350)
+    print(fluids.cpmass(), fluids.viscosity(), fluids.conductivity())
