@@ -260,7 +260,7 @@ def build_nozzle(data: dict, chamber=True):
     x = np.concatenate((x_ch, xen[:-1], xe, xq))
     y = np.concatenate((y_ch, yen[:-1], ye, yq))
 
-    x, y = convert_to_func(x=x, y=y, save=False)
+    x, y = convert_to_func(x=x, y=y, save=True)
 
     a = area_conversion(y)
     r_throat = np.min(y)

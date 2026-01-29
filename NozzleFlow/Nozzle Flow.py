@@ -191,7 +191,7 @@ if __name__ == '__main__':
                 "PrintOut": True,
                 "EnginePlot": "no",
                 "FlowPlot": False,
-                "EnergyPlot": True,
+                "EnergyPlot": False,
                 "ChannelPlot": True,
                 "ContourPlot": True,
             },

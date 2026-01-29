@@ -206,14 +206,22 @@ if __name__ == "__main__":
     # rocket_eqn_analysis(fuel="Kerosene", ox="LOX", alt=1, isp=isp, of=of)
 
     cea = CEA_Obj(oxName="O2", fuelName="Kerosene")
-    fluid = CP.AbstractState("HEOS", 'n-Dodecane')
-    for i in np.linspace(270,800, 20):
+    # print(cea.get_Chamber_Transport(Pc=305, MR=1.8)[2] * 1.7307)
+    print(cea.get_Chamber_MolWt_gamma(Pc=305, MR=1.8)[0])
+
+    # fluid = CP.AbstractState("HEOS", 'n-Dodecane')
+    # fluid.update(CP.PT_INPUTS, 2.569e6, 300)
+    # print(fluid.cpmass())
+    # print(fluid.molar_mass())
+    # print(8314.462618 / fluid.molar_mass()*1000)
+    # print(fluid.conductivity())
+    # print(fluid.viscosity())
+    # for i in np.linspace(270,800, 20):
         #     print(cea.get_Throat_Transport(Pc=i, MR=1.8)[1] * 1e-4)
         # print(cea.get_Tcomb(Pc=217, MR=1.8)*5/9)
 
         # print(cea.get_HeatCapacities(Pc=273, MR=1.8)[1])
 
-
-        fluid.update(CP.PT_INPUTS, 3e6, i)
-        print(fluid.cpmass())
+        # fluid.update(CP.PT_INPUTS, 3e6, i)
+        # print(fluid.cpmass())
         # print(i)
