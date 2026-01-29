@@ -188,6 +188,7 @@ def chamber_contraction(x, y, info: dict, Lc=0.05):
     # CR is the ratio of chamber area to throat area
     # Chamber length is essentially L* Ac / At
     V_c = Lstar * A_t
+    print(V_c, Lstar, A_t)
     L_c = ( (V_c / A_t) - 1/3*np.sqrt(A_t/np.pi) / np.tan(theta) * (CR**(1/3) - 1)) / CR
 
     info["E"]["Lc"] = L_c

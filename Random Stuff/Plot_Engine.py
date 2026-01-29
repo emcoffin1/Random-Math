@@ -49,4 +49,30 @@ def plot_xy_txt(
     plt.tight_layout()
     plt.show()
 
-plot_xy_txt(filepath="nozzle_curve_rpa.txt", mirror_y=True)
+
+def add_zero_z_column(input_file, output_file):
+    # Load x, y columns
+    data = np.loadtxt(input_file)
+
+    if data.shape[1] != 2:
+        raise ValueError("Input file must have exactly two columns (x y)")
+
+    # Create z column of zeros
+    z = np.zeros((data.shape[0], 1))
+
+    # Stack x, y, z
+    data_xyz = np.hstack((data, z))
+
+    # Save back to txt
+    np.savetxt(
+        output_file,
+        data_xyz,
+        fmt="%.6f",
+        delimiter=" "
+    )
+
+# Example usage
+add_zero_z_column("nozzle_curve_rpa.txt", "nozzle_curve_rpa.txt")
+
+
+# plot_xy_txt(filepath="nozzle_curve_rpa.txt", mirror_y=True)

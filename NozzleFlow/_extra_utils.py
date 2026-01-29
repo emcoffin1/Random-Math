@@ -245,7 +245,7 @@ def data_display(data: dict):
     print(frmt.format("Ox Flow Rate", of_l, "kg/s", of_l*2.20462, "lbs/s", "|"))
     print(frmtext.format("Expansion Ratio", "", "", np.max(eps), " ", "|"))
     print(frmt.format("Chamber Radius", data["E"]["y"][-1]*1000, "mm", data["E"]["y"][-1]*39.3701, "in", "|"))
-    print(frmt.format("Chamber Length", Lc/1000, "mm", Lc*39.3701, "in", "|"))
+    print(frmt.format("Chamber Length", Lc*1000, "mm", Lc*39.3701, "in", "|"))
     print(frmt.format("Characteristic Velocity", data["H"]["cstar"], "m/s", data["H"]["cstar"]*3.28084, "ft/s", "|"))
 
     print("="*102,f"{'|':<}")
