@@ -97,6 +97,7 @@ def main_basic(data: dict, nozzle_build: bool = True, display=True):
     iterate_pressure    = data["Solver"]["IteratePressureDrop"]
     iterate_using_pressure = data["Solver"]["IterateUsingPressureDrop"]
     heat_solver         = data["Solver"]["HeatSolver"]
+    build_engine        = data["Solver"]["BuildEngine"]
 
     print_display       = data["Display"]["PrintOut"]
     flow_plot           = data["Display"]["FlowPlot"]
@@ -109,7 +110,7 @@ def main_basic(data: dict, nozzle_build: bool = True, display=True):
 
     if nozzle_build:
         # Build nozzle
-        x, y, a         = build_nozzle(data=data)
+        x, y, a         = build_nozzle(data=data, build=build_engine)
         iterate = False if iterate_cooling else True
 
         # First pass assessment
@@ -186,18 +187,20 @@ if __name__ == '__main__':
                 "FilmCool": False,
                 "EnergyMethod": True,
                 "HeatSolver": False,
+                "BuildEngine": False,
             },
             "Display": {
                 "PrintOut": True,
                 "EnginePlot": "no",
                 "FlowPlot": False,
                 "EnergyPlot": False,
-                "ChannelPlot": True,
-                "ContourPlot": True,
+                "ChannelPlot": False,
+                "ContourPlot": False,
             },
             "CEA_obj": object,
             "E": {
-                "Pc": 2.1e6,  # Chamber Pressure [Pa]
+                "Pc": 0.96e6,  # Chamber Pressure [Pa]
+                # "Pc": 2.1e6,
                 "Pe": 101325,  # Ambient Pressure (exit) [Pa]
                 "Tc": None,  # Chamber temp [K]
                 "mdot": 1.5,  # Mass Flow Rate [kg/s]

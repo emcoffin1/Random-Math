@@ -2,11 +2,14 @@ import numpy as np
 from MachSolver import area_ratio_from_M
 from _extra_utils import plot_engine, convert_to_func
 from GasProperties import HotGas_Properties
+import pandas as pd
 
 """https://rrs.org/2023/01/28/making-correct-parabolic-nozzles/"""
 """Compare with this at some point"""
 
-
+def _read_engine_csv(filename):
+    df = pd.read_csv(filename,delim_whitespace=True, header=None)
+    return np.array(df[0]), np.array(df[1])
 
 
 def throat_radius(flow: dict):
@@ -204,63 +207,54 @@ def chamber_contraction(x, y, info: dict, Lc=0.05):
     return x_ch, y_ch, x_con, y_con
 
 
-def build_nozzle(data: dict, chamber=True):
+def build_nozzle(data: dict, chamber=True, build=True):
     """
     Build the full nozzle and optionally plot
     """
-    # Pressure ratio
-    P_r = data["E"]["Pc"] / data["E"]["Pe"]
+    plots, gamma = data["Display"]["EnginePlot"], data["H"]["gamma"]
+    if build:
+        # Pressure ratio
+        P_r = data["E"]["Pc"] / data["E"]["Pe"]
 
-    # Exit mach
-    Me = exit_mach_from_p(P_r)
+        # Exit mach
+        Me = exit_mach_from_p(P_r)
 
-    # Expansion ratio
-    data["E"]["eps"] = area_ratio_from_M(Me, gamma=data["H"]["gamma"])
-    data["E"]["Rt"] = throat_radius(flow=data)
+        # Expansion ratio
+        data["E"]["eps"] = area_ratio_from_M(Me, gamma=data["H"]["gamma"])
+        data["E"]["Rt"] = throat_radius(flow=data)
 
-    Pe, Pc, T, size, mdot, Rt, gamma, R, plots, eps = (
-        data["E"]["Pe"], data["E"]["Pc"], data["E"]["Tc"], data["E"]["size"], data["E"]["mdot"], data["E"]["Rt"], data["H"]["gamma"],
-        data["H"]["R"], data["Display"]["EnginePlot"], data["E"]["eps"]
-    )
+        Pe, Pc, T, size, mdot, Rt, gamma, R, eps = (
+            data["E"]["Pe"], data["E"]["Pc"], data["E"]["Tc"], data["E"]["size"], data["E"]["mdot"], data["E"]["Rt"], data["H"]["gamma"],
+            data["H"]["R"], data["E"]["eps"]
+        )
 
-    # Engine Structure/shape
-    L, n, e = get_angles(Rt, eps, bell_percent=size)
-    points = point_selection(Rt, eps, n, e, bell_percent=size)
+        # Engine Structure/shape
+        L, n, e = get_angles(Rt, eps, bell_percent=size)
+        points = point_selection(Rt, eps, n, e, bell_percent=size)
 
-    xq, yq = quadratic_curve(points)
-    xe, ye = exit_section(Rt, n)
-    xen, yen = entry_section(Rt)
+        xq, yq = quadratic_curve(points)
+        xe, ye = exit_section(Rt, n)
+        xen, yen = entry_section(Rt)
 
-    # if not chamber:
-    #     xen, yen = entry_section(Rt)
-    #     # Build out full line
-    #     x = np.concatenate((xen[::-1], xe, xq))
-    #     y = np.concatenate((yen[::-1], ye, yq))
-    #
-    # else:
-    #
-    #     x = np.concatenate((xe, xq))
-    #     y = np.concatenate((ye, yq))
-    #
-    #     x_ch, y_ch, x_con, y_con = chamber_contraction(x=xe, y=ye, info=data)
-    #
-    #     x = np.concatenate((x_ch, x_con[:-1], x))
-    #     y = np.concatenate((y_ch, y_con[:-1], y))
+        if not chamber:
+            x_ch = np.zeros(5)
+            x_con = np.zeros(5)
+            y_ch = np.zeros(5)
+            y_con = np.zeros(5)
 
-    if not chamber:
-        x_ch = np.zeros(5)
-        x_con = np.zeros(5)
-        y_ch = np.zeros(5)
-        y_con = np.zeros(5)
+        else:
+            x_ch, y_ch, x_con, y_con = chamber_contraction(x=xe, y=ye, info=data)
 
+        # Full use of Rao Bell
+        x = np.concatenate((x_ch, xen[:-1], xe, xq))
+        y = np.concatenate((y_ch, yen[:-1], ye, yq))
+
+        x, y = convert_to_func(x=x, y=y, save=True)
     else:
-        x_ch, y_ch, x_con, y_con = chamber_contraction(x=xe, y=ye, info=data)
-
-    # Full use of Rao Bell
-    x = np.concatenate((x_ch, xen[:-1], xe, xq))
-    y = np.concatenate((y_ch, yen[:-1], ye, yq))
-
-    x, y = convert_to_func(x=x, y=y, save=True)
+        x, y = _read_engine_csv(filename="nozzle_curve.txt")
+        data["E"]["eps"] = y[-1] / np.min(y)
+        data["E"]["Rt"] = np.min(y)
+        Rt = data["E"]["Rt"]
 
     a = area_conversion(y)
     r_throat = np.min(y)
@@ -276,6 +270,7 @@ def build_nozzle(data: dict, chamber=True):
     data["E"]["r_throat"] = Rt
     data["E"]["r_exit"] = 0.382 * Rt
     data["E"]["r_entry"] = 1.5 * Rt
+
 
     N = len(x)
     dx_edge = np.diff(x)

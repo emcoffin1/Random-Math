@@ -48,6 +48,7 @@ def mach_from_area_ratio(eps, gamma=1.4):
 def isentropic_nozzle_flow(eps, data: dict):
     # Unpack data dictionary
     T0, P0, gamma, R, H0 = data["E"]['Tc'], data["E"]['Pc'], data["H"]['gamma'], data["H"]['R'], data["H"]["H"]
+    At, Ae, Pa = np.min(data["E"]["a"]), data["E"]["a"][-1], data["E"]["Pe"]
 
     # Compute mach through geometry
     M = np.array([mach_from_area_ratio(eps=e, gamma=gamma) for e in eps])
@@ -64,6 +65,22 @@ def isentropic_nozzle_flow(eps, data: dict):
     # Compute Enthalpy Values
     H = H0 - 0.5*U**2
 
+    # Double check mdot
+    cf_mom = np.sqrt(
+        (2 * gamma ** 2 / (gamma - 1)) *
+        (2 / (gamma + 1)) ** ((gamma + 1) / (gamma - 1)) *
+        (1 - (P[-1] / P0) ** ((gamma - 1) / gamma))
+    )
+    # pressure contribution
+    cf_pres = (P[-1] - Pa) / P0 * (Ae / At)
+    c_f = cf_pres + cf_mom
+    # print(c_f)
+    cstar = data["H"]["cstar"]
+    mdot = P0 * At / cstar
+    # print(mdot)
+
+    data["E"]["mdot"] = mdot
+    data["E"]["c_f"] = c_f
     data["Flow"]["M"] = M
     data["Flow"]["P"] = P
     data["Flow"]["T"] = T
