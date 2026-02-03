@@ -34,9 +34,12 @@ def thrust_from_throttle(u, T_MAX):
 
 
 # ---------- Simulation ----------
+
 def simulate(m0, z_ref, Kp, Kd, a_max, t_hover, u_min, u_max, dt=0.01, t_final=10.0):
     T_MAX = thrust_from_throttle(max_u, 3682)
     N = int(t_final / dt)
+
+    state = 0
 
     z = 0.0
     v = 0.0
@@ -51,16 +54,13 @@ def simulate(m0, z_ref, Kp, Kd, a_max, t_hover, u_min, u_max, dt=0.01, t_final=1
         # --- Controller ---
         a_cmd = acceleration_cmd(z, v, z_ref, Kp, Kd, a_max)
 
-        # Optional g-limit (2 g total accel)
-        a_cmd = np.clip(a_cmd, -g, 2*g)
-
         T_cmd = m * (g + a_cmd)
 
         u = throttle_from_thrust(T_cmd, T_MAX, u_min, u_max)
         T = thrust_from_throttle(u, T_MAX)
 
         # --- Dynamics ---
-        a = T / m - g
+        a = (T / m) - g
         v += a * dt
         z += v * dt
         m -= mdot(u) * dt
@@ -78,100 +78,31 @@ def simulate(m0, z_ref, Kp, Kd, a_max, t_hover, u_min, u_max, dt=0.01, t_final=1
             z = 0
             v = 0
 
-        err = np.abs(z - z_ref) / z
-        if err < 0.01:
-            print(f"50m reached: {t:.2f}s")
-            print(f"Fuel consumed: {(m0 - m):.2f} kg ~~ {((m0-m) * 2.20462):.2f}lbs")
-            break
+        if state == 0:
 
-    t_stop = t+t_hover
+            err = np.abs(z - z_ref) / z
+            if err < 0.01:
+                print(f"50m reached: {t:.2f}s")
+                print(f"Fuel consumed: {(m0 - m):.2f} kg ~~ {((m0-m) * 2.20462):.2f}lbs")
+                t_stop = t+t_hover
+                state = 1
+                # break
 
-    # HOVER
-    for k in range(N):
-        t += dt
+        elif state == 1:
+            err = np.abs(t - t_stop) / t_stop
+            if err < 0.01:
+                print(f"Hover Completed: {t:.2f}s")
+                print(f"Fuel consumed: {(m0 - m):.2f} kg ~~ {((m0 - m) * 2.20462):.2f}lbs")
+                # break
+                z_ref = 0.05
+                state = 2
 
-        # --- Controller ---
-        a_cmd = acceleration_cmd(z, v, z_ref, Kp, Kd, a_max)
-
-        # Optional g-limit (2 g total accel)
-        a_cmd = np.clip(a_cmd, -g, 2 * g)
-
-        T_cmd = m * (g + a_cmd)
-
-        u = throttle_from_thrust(T_cmd, T_MAX, u_min, u_max)
-        T = thrust_from_throttle(u, T_MAX)
-
-        # --- Dynamics ---
-        a = T / m - g
-        v += a * dt
-        z += v * dt
-        m -= mdot(u) * dt
-
-        # --- Save ---
-        t_hist.append(t)
-        z_hist.append(z)
-        v_hist.append(v)
-        m_hist.append(m)
-        u_hist.append(u)
-        T_hist.append(T)
-        a_hist.append(a / g)
-
-        if z < 0:
-            z = 0
-            v = 0
-
-        err = np.abs(t - t_stop) / t_stop
-        if err < 0.01 :
-            print(f"Hover Completed: {t:.2f}s")
-            print(f"Fuel consumed: {(m0 - m):.2f} kg ~~ {((m0 - m) * 2.20462):.2f}lbs")
-            break
-
-    z_ref = 0.05
-
-
-    for k in range(N):
-        t += dt
-
-        # --- Controller ---
-        a_cmd = acceleration_cmd(z, v, z_ref, Kp, Kd, a_max)
-
-        # Optional g-limit (2 g total accel)
-        a_cmd = np.clip(a_cmd, -g, 2*g)
-
-        T_cmd = m * (g + a_cmd)
-
-        u = throttle_from_thrust(T_cmd, T_MAX, u_min, u_max)
-        T = thrust_from_throttle(u,T_MAX)
-
-        # --- Dynamics ---
-        a = T / m - g
-        v += a * dt
-        z += v * dt
-        m -= mdot(u) * dt
-
-        # --- Save ---
-        t_hist.append(t)
-        z_hist.append(z)
-        v_hist.append(v)
-        m_hist.append(m)
-        u_hist.append(u)
-        T_hist.append(T)
-        a_hist.append(a/g)
-
-        if z <= 0:
-            z = 0.05
-            v = 0
-
-        # err = np.abs(z - z_ref) / z
-        err = z-z_ref
-        # print(f"{err:.2f}, {z:.2f}, z_ref:{z_ref:.2f}, throttle: {u:.2f}")
-        # if k % 50 == 0:
-        #     print(f"t={t:5.2f} z={z:6.2f} v={v:6.2f} a_cmd={a_cmd:6.2f}  T_cmd={T_cmd:7.1f}  u={u:5.3f}")
-
-        if err < 0.01:
-            print(f"0m reached: {t}s")
-            print(f"Fuel consumed: {(m0 - m):.2f} kg ~~ {((m0-m) * 2.20462):.2f}lbs")
-            break
+        elif state == 2:
+            err = z - z_ref
+            if err < 0.01:
+                print(f"0m reached: {t:.2f}s")
+                print(f"Fuel consumed: {(m0 - m):.2f} kg ~~ {((m0 - m) * 2.20462):.2f}lbs")
+                break
 
     return (
         np.array(t_hist),
@@ -191,9 +122,9 @@ if __name__ == "__main__":
     mdot_calc_0 = 0
     iter = 50
     a_max = 3
-    t_hover = 0
+    t_hover = 0.5
     max_u = 1.0
-    min_u = 0.25
+    min_u = 0.35
 
     # Gains (start here)
     Kp = 1.2
@@ -203,6 +134,8 @@ if __name__ == "__main__":
                                    dt=0.001, t_final=t_final, u_min=min_u, u_max=max_u)
 
     print(f"Minimum throttle achieved: {np.min(u):.2f}")
+    a = a/9.81 + 1
+    print(f"Maximum g-load achieved: {np.max(a):.2f}")
 
     pd = pd.DataFrame({
         "t": t,
@@ -211,6 +144,7 @@ if __name__ == "__main__":
         "a": a,
         "u": u,
     })
+
 
     # pd.to_csv("thrust_optimization.csv", index=False)
 
@@ -233,13 +167,13 @@ if __name__ == "__main__":
 
     plt.subplot(5,1,4)
     plt.plot(t, u)
-    plt.ylabel("Throttle")
+    plt.ylabel("Throttle (%)")
     plt.xlabel("Time (s)")
     plt.grid()
 
     plt.subplot(5,1,5)
     plt.plot(t, a)
-    plt.ylabel("Acceleration (m/s^2)")
+    plt.ylabel("g-Load (g's)")
     plt.xlabel("Time (s)")
     plt.grid()
 
