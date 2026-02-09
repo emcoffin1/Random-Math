@@ -186,20 +186,20 @@ if __name__ == '__main__':
                 "IterateUsingPressureDrop": False,
                 "FilmCool": False,
                 "EnergyMethod": True,
-                "HeatSolver": False,
-                "BuildEngine": False,
+                "HeatSolver": True,
+                "BuildEngine": True,
             },
             "Display": {
                 "PrintOut": True,
                 "EnginePlot": "no",
-                "FlowPlot": False,
-                "EnergyPlot": False,
-                "ChannelPlot": False,
-                "ContourPlot": False,
+                "FlowPlot": True,
+                "EnergyPlot": True,
+                "ChannelPlot": True,
+                "ContourPlot": True,
             },
             "CEA_obj": object,
             "E": {
-                "Pc": 0.96e6,  # Chamber Pressure [Pa]
+                "Pc": 2.1e6,  # Chamber Pressure [Pa]
                 # "Pc": 2.1e6,
                 "Pe": 101325,  # Ambient Pressure (exit) [Pa]
                 "Tc": None,  # Chamber temp [K]

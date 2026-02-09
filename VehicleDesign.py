@@ -39,7 +39,7 @@ def stoich_of_formula(fuel_formula, fuel_mw=None, oxid_formula="O2", oxid_mw=32.
     return OF
 
 
-def isp_getter(fuel, ox, plot=False):
+def isp_getter(fuel, ox, pc, plot=False):
 
     CEA = CEA_Obj(
         oxName=ox,
@@ -47,10 +47,11 @@ def isp_getter(fuel, ox, plot=False):
 
     result_isp = []
     OF = np.linspace(1, 5, 500)
-    pc = 2.5e6 * 0.000145038
+    pc = pc * 0.000145038
     for i in OF:
-        isp, _ = CEA.estimate_Ambient_Isp(Pc=pc, MR=i)
-        result_isp.append(isp)
+        # isp, _ = CEA.estimate_Ambient_Isp(Pc=pc, MR=i)
+        mw, gam = CEA.get_Chamber_MolWt_gamma(Pc=pc, MR=i)
+        result_isp.append(gam)
         # result_isp.append(CEA.get_Isp(Pc=pc, MR=i))
 
 
@@ -201,13 +202,13 @@ def rocket_eqn_analysis(fuel, ox, alt: int, of, isp, T_W_ratio: float = 6, m0: f
 
 
 if __name__ == "__main__":
-    # isp_getter(fuel="Ethanol", ox="O2", plot=True)
+    isp_getter(fuel="RP1", ox="LOX", pc=2.1e6, plot=True)
     # of, isp = isp_getter(fuel="Kerosene", ox="LOX")
     # rocket_eqn_analysis(fuel="Kerosene", ox="LOX", alt=1, isp=isp, of=of)
 
-    cea = CEA_Obj(oxName="O2", fuelName="Kerosene")
+    # cea = CEA_Obj(oxName="O2", fuelName="Kerosene")
     # print(cea.get_Chamber_Transport(Pc=305, MR=1.8)[2] * 1.7307)
-    print(cea.get_Chamber_MolWt_gamma(Pc=305, MR=1.8)[0])
+    # print(cea.get_/Chamber_MolWt_gamma(Pc=305, MR=1.8)[0])
 
     # fluid = CP.AbstractState("HEOS", 'n-Dodecane')
     # fluid.update(CP.PT_INPUTS, 2.569e6, 300)
