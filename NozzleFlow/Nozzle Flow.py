@@ -199,11 +199,11 @@ if __name__ == '__main__':
             },
             "CEA_obj": object,
             "E": {
-                "Pc": 2.1e6,  # Chamber Pressure [Pa]
+                "Pc": 2.43e6,  # Chamber Pressure [Pa]
                 # "Pc": 2.1e6,
                 "Pe": 101325,  # Ambient Pressure (exit) [Pa]
                 "Tc": None,  # Chamber temp [K]
-                "mdot": 1.5,  # Mass Flow Rate [kg/s]
+                "mdot": 2.5,  # Mass Flow Rate [kg/s]
                 "OF": 1.8,
                 "size": 1.0,
                 "CR": 6,

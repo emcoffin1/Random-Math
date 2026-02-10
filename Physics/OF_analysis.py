@@ -94,6 +94,130 @@ def plot_thrusts(of, thrust):
     plt.show()
 
 
+def plot_thrusts_pc(thrust, pc):
+    fig, ax = plt.subplots()
+
+    ax.plot(pc, thrust)
+    ax.set_title("Thrust vs Chamber Pressure")
+    ax.grid(True)
+
+    # -----------------------------
+    # Unit conversions
+    # -----------------------------
+    def lbs_from_N(N):
+        return N * 0.224809
+
+    def N_from_lbs(lbs):
+        return lbs * 4.44822
+
+    def psi_from_pa(pa):
+        return pa * 0.000145038
+
+    def pa_from_psi(psi):
+        return psi * 6894.76
+
+    # -----------------------------
+    # Primary axes
+    # -----------------------------
+    ax.set_xlabel("Chamber Pressure (Pa)")
+    ax.set_ylabel("Thrust (N)")
+
+    # -----------------------------
+    # Secondary axes
+    # -----------------------------
+    sec_y = ax.secondary_yaxis(
+        'right',
+        functions=(lbs_from_N, N_from_lbs)
+    )
+
+    sec_x = ax.secondary_xaxis(
+        'top',
+        functions=(psi_from_pa, pa_from_psi)
+    )
+
+    # -----------------------------
+    # Mirror axis LABELS (this is the key part)
+    # -----------------------------
+
+    # Y labels (Thrust)
+    ax.yaxis.set_label_coords(-0.12, 0.5)
+    sec_y.set_ylabel("Thrust (lbf)", rotation=90)
+    sec_y.yaxis.set_label_coords(-0.1, 0.5)
+
+    # X labels (Pressure)
+    ax.xaxis.set_label_coords(0.5, -0.1)
+    sec_x.set_xlabel("Chamber Pressure (psi)")
+    sec_x.xaxis.set_label_coords(0.5, 1.1)
+
+    # Lock alignment (important for symmetry)
+    ax.yaxis.label.set_va("center")
+    sec_y.yaxis.label.set_va("center")
+    ax.xaxis.label.set_ha("center")
+    sec_x.xaxis.label.set_ha("center")
+
+    ax.axhline(np.max(thrusts)*0.4, linestyle='--', color='k')
+
+    plt.show()
+
+
+def plot_thrusts_flowrate(thrust, total):
+
+    r = np.corrcoef(total,thrust)
+    m, b = np.polyfit(total, thrust, 1)
+    y_fit = m*total + b
+
+    fig, ax = plt.subplots()
+
+    ax.plot(total, thrust)
+    ax.plot(total, y_fit, 'r--', label=f'Best Fit: {r}')
+    ax.set_title("Thrust vs Total Flow Rate")
+    ax.grid(True)
+    ax.legend(loc='best')
+
+    # -----------------------------
+    # Unit conversions
+    # -----------------------------
+    def lbs_from_N(N):
+        return N * 0.224809
+
+    def N_from_lbs(lbs):
+        return lbs * 4.44822
+
+
+    # -----------------------------
+    # Primary axes
+    # -----------------------------
+    ax.set_xlabel("Mass Flow Rate (kg/s)")
+    ax.set_ylabel("Thrust (N)")
+
+    # -----------------------------
+    # Secondary axes
+    # -----------------------------
+    sec_y = ax.secondary_yaxis(
+        'right',
+        functions=(lbs_from_N, N_from_lbs)
+    )
+
+
+    # -----------------------------
+    # Mirror axis LABELS (this is the key part)
+    # -----------------------------
+
+    # Y labels (Thrust)
+    ax.yaxis.set_label_coords(-0.12, 0.5)
+    sec_y.set_ylabel("Thrust (lbf)", rotation=90)
+    sec_y.yaxis.set_label_coords(-0.1, 0.5)
+
+
+    # Lock alignment (important for symmetry)
+    ax.yaxis.label.set_va("center")
+    sec_y.yaxis.label.set_va("center")
+    ax.xaxis.label.set_ha("center")
+
+    ax.axhline(np.max(thrusts)*0.4, linestyle='--', color='k')
+
+    plt.show()
+
 if __name__ == "__main__":
     fuel_rate = 0.536
     of_s = np.linspace(min, max, 30)
@@ -105,5 +229,6 @@ if __name__ == "__main__":
 
     # plot_gam(gams=gams, ofs=of_s, fuel=fuel_rate)
     # plot_chamber_pressure(chamb_pres, flow_rate=fuel_rate+lox_rate)
-    plot_thrusts(of=fuel_rate+lox_rate, thrust=thrusts)
-
+    # plot_thrusts(of=fuel_rate+lox_rate, thrust=thrusts)
+    # plot_thrusts_pc(thrusts, chamb_pres)
+    plot_thrusts_flowrate(thrusts, total=lox_rate+fuel_rate)
